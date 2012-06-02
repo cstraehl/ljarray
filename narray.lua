@@ -7,8 +7,8 @@
 -- Observed LUAJIT strangeness:
 --
 --   calling a function defined as Array:function(a,b,c) 
---   is slower then calling the same cunfction
---   defined as Array.function(self, ab, c) ?
+--   is slower then calling the same function
+--   defined as Array.function(self, ab, c) ??
 --
 --
 local math = require("math") 
@@ -19,9 +19,13 @@ local helpers = require("helpers")
 local Array = {}
 Array.__index = Array
 
+-- some VLA ffi types for arrays
 Array.int8 = ffi.typeof("char[?]");
 Array.int32 = ffi.typeof("int[?]");
 Array.int64 = ffi.typeof("long[?]");
+Array.uint8 = ffi.typeof("unsigned char[?]");
+Array.uint32 = ffi.typeof("unsigned int[?]");
+Array.uint64 = ffi.typeof("unsigned long[?]");
 Array.float32 = ffi.typeof("float[?]");
 Array.float64 = ffi.typeof("double[?]");
  
@@ -79,8 +83,12 @@ end
 --
 -- required
 --  ptr : a ffi pointer to the data
---  dtype : the ffi data type
+--  dtype : the VLA ffi data type
 --  shape : a table that contains the size of the dimension
+--
+-- optional
+--  strides : if nil, the ptr data is sumed to be dense
+--            otherwise a table of strides
 --  source : an objects whose reference is stored
 --           usecase: custom allocators
 function Array.fromData(ptr, dtype, shape, strides, source)
@@ -88,7 +96,15 @@ function Array.fromData(ptr, dtype, shape, strides, source)
   setmetatable(array,Array)
   array.data = ptr
   array.dtype = dtype
-  array.strides = strides
+  if strides then
+    array.strides = strides
+  else
+    array.strides = {} --ffi.new(Array.int32,#shape+1)
+    array.strides[#shape] = 1
+    for i = #shape-1,1,-1 do
+      array.strides[i] = shape[i+1] * array.strides[i+1]
+    end
+  end
   array.shape = shape
   if source == nil then
     array.source = array    
@@ -103,21 +119,12 @@ end
 
 
 function Array.create(shape, dtype)
--- allocate uninitialized array from shape and ffi dtype
+-- allocate uninitialized array from shape and VLA ffi dtype
 --
 -- required
 --  shape : table containing the size of the array dimension
---  dtype : the ffi dtype of the array
+--  dtype : the VLA ffi dtype of the array
 --
-   -- calculate strides.
-   -- LUAJIT:for some reason using a lua table seems to be faster 
-   -- then using a native array  , probably because
-   -- native arrays are never on stack ?
-   local strides = {} --ffi.new(Array.int32,#shape+1)
-   strides[#shape] = 1
-   for i = #shape-1,1,-1 do
-     strides[i] = shape[i+1] * strides[i+1]
-   end
    
    -- allocate data, do not initialize !
    -- the {0} is a trick to prevent zero
@@ -126,7 +133,7 @@ function Array.create(shape, dtype)
    local size = helpers.reduce(operator.mul, shape, 1)
    local data = dtype(size, {0})
 
-   return Array.fromData(data,dtype,shape,strides)
+   return Array.fromData(data,dtype,shape,nil)
 end
 
 function Array.zeros(shape,dtype)
