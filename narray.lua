@@ -4,7 +4,7 @@
 --
 --
 --
--- Observed LUAJIT strangeness:
+-- Investigate LUAJIT strangeness:
 --
 --   calling a function defined as Array:function(a,b,c) 
 --   is slower then calling the same function
@@ -44,6 +44,7 @@ local operator = {
      le  = function(n,m) return n <= m end;
      ge  = function(n,m) return n >= m end;
      ne  = function(n,m) return n ~= m end;
+     assign  = function(a,b) return b end; 
  }
 
 -- helper method that specializes some critical functions depending
@@ -87,8 +88,10 @@ end
 --  shape : a table that contains the size of the dimension
 --
 -- optional
---  strides : if nil, the ptr data is sumed to be dense
---            otherwise a table of strides
+--  strides : if nil, the ptr data is sumed to be dense C order
+--            otherwise a table of strides can be provided or
+--            "f" : for dense fortran order strides
+--            "c" : for dense c order strides
 --  source : an objects whose reference is stored
 --           usecase: custom allocators
 function Array.fromData(ptr, dtype, shape, strides, source)
@@ -96,10 +99,27 @@ function Array.fromData(ptr, dtype, shape, strides, source)
   setmetatable(array,Array)
   array.data = ptr
   array.dtype = dtype
-  if strides then
+  if type(strides) == "table" then
     array.strides = strides
-  else
-    array.strides = {} --ffi.new(Array.int32,#shape+1)
+    if #strides == 1 then
+      array.order = "c" -- default is c order
+    else
+      if strides[2] > strides[1] then
+        array.order = "f"
+      else
+        array.order = "c"
+      end
+    end
+  elseif strides == "f" then
+    array.order = "f"
+    array.strides = {} 
+    array.strides[1] = 1
+    for i = 2,#shape,1 do
+      array.strides[i] = shape[i-1] * array.strides[i-1]
+    end
+  elseif strides == "c" or not strides then
+    array.order = "c"
+    array.strides = {} 
     array.strides[#shape] = 1
     for i = #shape-1,1,-1 do
       array.strides[i] = shape[i+1] * array.strides[i+1]
@@ -118,13 +138,16 @@ function Array.fromData(ptr, dtype, shape, strides, source)
 end
 
 
-function Array.create(shape, dtype)
+function Array.create(shape, dtype, order)
 -- allocate uninitialized array from shape and VLA ffi dtype
 --
 -- required
 --  shape : table containing the size of the array dimension
 --  dtype : the VLA ffi dtype of the array
---
+-- 
+-- optional
+--  order : can be either "f" for fortran order or
+--          "c" for c order, default is c order
    
    -- allocate data, do not initialize !
    -- the {0} is a trick to prevent zero
@@ -133,7 +156,7 @@ function Array.create(shape, dtype)
    local size = helpers.reduce(operator.mul, shape, 1)
    local data = dtype(size, {0})
 
-   return Array.fromData(data,dtype,shape,nil)
+   return Array.fromData(data,dtype,shape,order)
 end
 
 function Array.zeros(shape,dtype)
@@ -142,6 +165,20 @@ function Array.zeros(shape,dtype)
   local array = Array.create(shape, dtype)
   array:assign(0)
   return array
+end
+
+function Array.copy(self,order)
+-- copy an array
+--
+-- optional
+--  order : either "c" or "f" to produce a c or fortran ordered copy
+
+  if not order then
+    order = self.order
+  end
+  local result = Array.create(self.shape, self.dtype, order) 
+  result:mapBinaryInplace(self, operator.assign)
+  return result
 end
 
 function Array.view(self,start, stop)
@@ -237,12 +274,12 @@ function Array.mapInplace(self,f, call_with_position)
     local ndim = self.ndim
     local d = 1
     local offseta = 0
-
     while pos[1] < self.shape[1] do
+      -- print(helpers.to_string(pos), d)
       if d == ndim then
         -- iterate over array
         local stride = self.strides[d]
-        local stop = (self.shape[d]-1 ) *stride
+        local stop = (self.shape[d]-1 )*stride
         pos[ndim] = 0
         if call_with_position ~= true then
           for offset=0,stop,stride do
@@ -267,6 +304,7 @@ function Array.mapInplace(self,f, call_with_position)
       else
         d = d + 1
       end
+      -- print("blubb1")
     end
   end
 
@@ -294,7 +332,7 @@ function Array.mapBinaryInplace(self,other,f, call_with_position)
   local fct2 = other.get
 
   while pos[1] < self.shape[1] do
-    --print(helpers.to_string(pos))
+    -- print(helpers.to_string(pos), d)
     if d == ndim then
       -- iterate over array
       local stride_a = self.strides[d]
@@ -339,6 +377,7 @@ function Array.mapBinaryInplace(self,other,f, call_with_position)
     else
       d = d + 1
     end
+    -- print("blubb2")
   end
 end
 
@@ -367,7 +406,7 @@ function Array.mapTenaryInplace(self,other_b, other_c,f, call_with_position)
   local base_offset_c = 0
 
   while pos[1] < self.shape[1] do
-    --print(helpers.to_string(pos))
+    -- print(helpers.to_string(pos), d)
     if d == ndim then
       -- iterate over array
       local stride_a = self.strides[d]
@@ -416,6 +455,7 @@ function Array.mapTenaryInplace(self,other_b, other_c,f, call_with_position)
     else
       d = d + 1
     end
+    -- print("blubb3")
   end
 end
 
