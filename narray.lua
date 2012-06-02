@@ -184,7 +184,7 @@ function Array.bind(self,dimension, start, stop)
   local data = self.data + self.strides[dimension]*(start)
   local shape = {}
   local strides = {}
-  if stop == nil then
+  if not stop then
     for i=1,dimension,1 do
       array.strides[i] = self.strides[i]
       array.shape[i] = self.shape[i]
@@ -194,7 +194,7 @@ function Array.bind(self,dimension, start, stop)
       array.shape[i-1] = self.shape[i]
     end
   else
-    shape = copy(self.shape)
+    shape = helpers.copy(self.shape)
     shape[dimension] = stop - start
     strides = self.strides
   end
@@ -471,7 +471,7 @@ function Array.setCoordinates(self,coord, data)
   if type(data) == "table" then
     assert(#data.shape == 1)
     update_values = function(a, coord_index)
-      return data.data[coord_index*data.strides[1]]
+      return data:get1(coord_index)
     end
   else
     update_values = function(a, coord_index)
@@ -497,6 +497,40 @@ function Array.getCoordinates(self,indices)
   end
   self:mapCoordinates(indices, update_values)
   return result
+end
+
+function Array.where(self, boolarray, a, b)
+-- set array values depending on truth of boolarray to a (1) or b (0)
+-- can also be used as a static function, i.e. without self
+-- in this case the arguments are shifted to the left
+--
+-- required
+--  boolarray: array of shape self.shape containt 0 and 1s
+--  a  : a single array elemnt or an array of shape self.shape
+--  b  : a single array element of an array of shape self.shape
+
+  if not b then
+    b = a
+    a = boolarray
+    boolarray = self
+    local dtype = Array.float32
+    if type(a) == "table" then
+      dtype = a.dtype
+    elseif type(b) == "table" then
+      dtype = b.dtype
+    end
+    self = Array.create(boolarray.shape, dtype)
+  end
+
+  local nz = boolarray:nonzero()
+  self:assign(b)
+  if type(a) == "table" then -- assume array
+    local values = a:getCoordinates(nz)
+    self:setCoordinates(nz,values)
+  else -- asume element
+    self:setCoordinates(nz,a)
+  end
+  return self
 end
 
 function Array.assign(self,data)

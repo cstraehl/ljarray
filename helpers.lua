@@ -23,7 +23,7 @@ end
 
 copy = function(tbl)
   local newtbl = {}
-  for i=1,#tbl1,1 do
+  for i=1,#tbl,1 do
     newtbl[i] = tbl[i]
   end
   return newtbl
