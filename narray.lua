@@ -7,7 +7,7 @@
 -- Observed LUAJIT strangeness:
 --
 --   calling a function defined as Array:function(a,b,c) 
---   is *MUCH* slower then calling the same cunfction
+--   is slower then calling the same cunfction
 --   defined as Array.function(self, ab, c) ?
 --
 --
@@ -42,7 +42,8 @@ local operator = {
      ne  = function(n,m) return n ~= m end;
  }
 
-
+-- helper method that specializes some critical functions depending
+-- on the number of dimensions of the array
 function Array.fixMethodsDim(self)
   self.ndim = #self.shape
   if self.ndim == 1 then
@@ -66,7 +67,7 @@ function Array.fixMethodsDim(self)
     self.set = Array.setN
     self.setPos = Array.setPos4
   else
-    -- these methods are SLOOOW!
+    -- TODO: these methods are SLOOOW!
     self.get = self.getN
     self.getPos = self.getPosN
     self.set = Array.set1
@@ -74,6 +75,14 @@ function Array.fixMethodsDim(self)
   end
 end
 
+-- create array from existing data pointer
+--
+-- required
+--  ptr : a ffi pointer to the data
+--  dtype : the ffi data type
+--  shape : a table that contains the size of the dimension
+--  source : an objects whose reference is stored
+--           usecase: custom allocators
 function Array.fromData(ptr, dtype, shape, strides, source)
   local array = {}
   setmetatable(array,Array)
@@ -92,11 +101,18 @@ function Array.fromData(ptr, dtype, shape, strides, source)
   return array
 end
 
+
 function Array.create(shape, dtype)
+-- allocate uninitialized array from shape and ffi dtype
+--
+-- required
+--  shape : table containing the size of the array dimension
+--  dtype : the ffi dtype of the array
+--
    -- calculate strides.
    -- LUAJIT:for some reason using a lua table seems to be faster 
    -- then using a native array  , probably because
-   -- native arrays alsays on heap ?
+   -- native arrays are never on stack ?
    local strides = {} --ffi.new(Array.int32,#shape+1)
    strides[#shape] = 1
    for i = #shape-1,1,-1 do
@@ -113,7 +129,20 @@ function Array.create(shape, dtype)
    return Array.fromData(data,dtype,shape,strides)
 end
 
+function Array.zeros(shape,dtype)
+-- convenience function to fill initialize zero filled array
+  
+  local array = Array.create(shape, dtype)
+  array:assign(0)
+  return array
+end
+
 function Array.view(self,start, stop)
+-- construct a strided view to an array
+-- 
+-- required parameters
+--  start: start coordinates of view, table of length shape
+--  stop : stop coordinates of view, table of length shape
   assert(#start == #stop)
   assert(#start == #self.shape)
 
@@ -134,6 +163,17 @@ function Array.view(self,start, stop)
 end
 
 function Array.bind(self,dimension, start, stop)
+-- constructs a strided view of an axis
+--
+-- required 
+--  dimension: dimension
+--  start    : start index in dimension
+--
+-- optional
+--  stop     : stop index in dimension (exclusive)
+--
+-- if no stop index is given the ndim of the returned
+-- view is self.ndim-1
   local data = self.data + self.strides[dimension]*(start)
   local shape = {}
   local strides = {}
@@ -174,8 +214,17 @@ function Array.unravelIndex(self,index)
   return indices
 end
 
-local getMapInplace = function()
-  return function(self,f, call_with_position)
+function Array.mapInplace(self,f, call_with_position)
+-- iterates over an array and calls a function for each value
+--
+-- required
+--  f       : function to call. the function receives the
+--            value of the array element as first argument
+--            and optionally table with the coordinate of
+--            the current element
+-- optional
+--  call_with_position : if true, the funciton f will be
+--            called with the currents array element position
     local temp, offset, i
     local pos = helpers.binmap(operator.sub, self.shape, self.shape)
     local ndim = self.ndim
@@ -213,34 +262,21 @@ local getMapInplace = function()
       end
     end
   end
-end
 
-Array.mapInplace = getMapInplace()
-
+function Array.mapBinaryInplace(self,other,f, call_with_position)
+-- iterates jointly over two arrays and calls a function with
+-- the two values of the arrays at the current coordinate
 --
---  Optimally, we would like to implement the binary map
---  function with the help of the unary map and the position
---  argument. Unfortunately luajit cannot optimize away all
---  of the additional overhead that the following 
---  implementatino incurs:
---
---           function Array.mapBinaryInplace(self,f,other, call_with_position)
---             local helpers.binmapper
---             local _f = f
---             local _other = other
---             if call_with_position ~= true then
---               helpers.binmapper = function(a,pos)
---                 return _f(a,_other:getPos(pos))
---               end
---             else
---               helpers.binmapper = function(a,pos)
---                 return _f(a,_other:getPos(pos),pos)
---               end
---             end
---             self:mapInplace(helpers.binmapper, true)
---           end
-
-function Array.mapBinaryInplace(self,f,other, call_with_position)
+-- required
+--  other   : the other array, must have the same dimension and shape
+--  f       : function to call. the function receives the
+--            value of the array element as first argument
+--            and the value of the second arrays as second arguemnt.
+--            third argument is optionally a table with the coordinate of
+--            the current elements
+-- optional
+--  call_with_position : if true, the funciton f will be
+--            called with the currents array element position
   local temp_a, temp_b, offset_a, offset_b, i
   local pos = helpers.binmap(operator.sub, self.shape, self.shape)
   local ndim = self.ndim
@@ -299,7 +335,22 @@ function Array.mapBinaryInplace(self,f,other, call_with_position)
   end
 end
 
-function Array.mapTenaryInplace(self,f,other_b, other_c, call_with_position)
+function Array.mapTenaryInplace(self,other_b, other_c,f, call_with_position)
+-- iterates jointly over three arrays and calls a function with
+-- the three values of the arrays at the current coordinate
+--
+-- required
+--  other_b   : the second array, must have the same dimension and shape
+--  other_c   : the third array, must have the same dimension and shape
+--  f       : function to call. the function receives the
+--            value of the array element as first argument
+--            and the value of the second arrays as second arguemnt
+--            and the value of the third array as third argument.
+--            third argument is optionally a table with the coordinate of
+--            the current elements
+-- optional
+--  call_with_position : if true, the funciton f will be
+--            called with the currents array element position
   local temp_a, temp_b, temp_c, offset_a, offset_b, offset_c, i
   local pos = helpers.binmap(operator.sub, self.shape, self.shape)
   local ndim = #self.shape
@@ -362,6 +413,19 @@ function Array.mapTenaryInplace(self,f,other_b, other_c, call_with_position)
 end
 
 function Array.mapCoordinates(self,coord, f)
+-- calls a function f for some coordinates
+--
+-- required
+--  coord   : table of coordinates, the length of the table
+--            must equal the dimension of the array
+--            the table elements must be arrays of type int32
+--            which hold valid array coordinate indices
+--            for the corresponding dimension.
+--  f       : the function to be called.
+--            first argument is the value of the array at the current
+--            coordinate.
+--            second argument is the current joint index inthe
+--            coordinate table arrays.
   assert(#coord == #self.shape)
 
   local temp, offset, i
@@ -386,6 +450,232 @@ function Array.mapCoordinates(self,coord, f)
   end
 end
 
+function Array.setCoordinates(self,coord, data)
+-- set array value for some coordinates
+--
+-- required
+--  coord   : table of coordinate indices in the correspoinding dimension
+--            length of coord table must equal array dimensionality
+--  data    : either a constant single array alement or
+--            an array of elements whose length euquals the number
+--            of coordinates
+--
+  local update_values
+  if type(data) == "table" then
+    assert(#data.shape == 1)
+    update_values = function(a, coord_index)
+      return data.data[coord_index*data.strides[1]]
+    end
+  else
+    update_values = function(a, coord_index)
+      return data
+    end
+  end
+  -- map over the coord array
+  self:mapCoordinates(coord, update_values)
+end
+
+
+function Array.getCoordinates(self,indices)
+-- get array values for some coordinates
+--
+-- required
+--  coord   : table of coordinate indices in the correspoinding dimension
+--            length of coord table must equal array dimensionality
+  assert(#indices == self.ndim)
+  local result = Array.create({indices[1].shape[1]}, self.dtype)
+  local update_values = function(a, index)
+    result.data[index] = a -- the new array has no strides
+    return a
+  end
+  self:mapCoordinates(indices, update_values)
+  return result
+end
+
+function Array.assign(self,data)
+  if type(data) == "table" then
+    -- asume Array table
+    self:mapBinaryInplace(data, function(a,b) return b end)
+  else
+    self:mapInplace( function(x) return data end )
+  end
+end
+
+function Array.add(self,other)
+  if type(other) == "table" then
+    -- asume Array table
+    self:mapBinaryInplace(other, function(a,b) return a+b end)
+  else
+    self:mapInplace(function(a) return a + other end)
+  end
+end
+
+function Array.sub(self,other)
+  if type(other) == "table" then
+    -- asume Array table
+    self:mapBinaryInplace(other, function(a,b) return a-b end)
+  else
+    self:mapInplace(function(a) return a - other end)
+  end
+end
+
+function Array.mul(self,other)
+  if type(other) == "table" then
+    -- asume Array table
+    self:mapBinaryInplace(other, function(a,b) return a*b end)
+  else
+    self:mapInplace(function(a) return a * other end)
+  end
+end
+
+function Array.div(self,other)
+  if type(other) == "table" then
+    -- asume Array table
+    self:mapBinaryInplace(other, function(a,b) return a / b end)
+  else
+    self:mapInplace(function(a) return a / other end)
+  end
+end
+
+function Array.eq(self,other)
+  local result = Array.create(self.shape, Array.int8)
+  if type(other) == "table" then
+    -- asume Array table
+    result:mapTenaryInplace(self, other, function(a,b,c) if b == c then return 1 else return 0 end end)
+  else
+    result:mapBinaryInplace(self, function(a,b) if b == other then return 1 else return 0 end end)
+  end
+  return result
+end
+
+function Array.neq(self,other)
+  local result = Array.create(self.shape, Array.int8)
+  if type(other) == "table" then
+    -- asume Array table
+    result:mapTenaryInplace(self, other, function(a,b,c) if b == c then return 0 else return 1 end end)
+  else
+    result:mapBinaryInplace(self, function(a,b) if b == other then return 0 else return 1 end end)
+  end
+  return result
+end
+
+function Array.gt(self,other)
+  local result = Array.create(self.shape, Array.int8)
+  if type(other) == "table" then
+    -- asume Array table
+    result:mapTenaryInplace(self, other, function(a,b,c) if b > c then return 1 else return 0 end end)
+  else
+    result:mapBinaryInplace(self, function(a,b) if b > other then return 1 else return 0 end end)
+  end
+  return result
+end
+
+function Array.ge(self,other)
+  local result = Array.create(self.shape, Array.int8)
+  if type(other) == "table" then
+    -- asume Array table
+    result:mapTenaryInplace(self, other, function(a,b,c) if b >= c then return 1 else return 0 end end)
+  else
+    result:mapBinaryInplace(self, function(a,b) if b >= other then return 1 else return 0 end end)
+  end
+  return result
+end
+
+function Array.lt(self,other)
+  local result = Array.create(self.shape, Array.int8)
+  if type(other) == "table" then
+    -- asume Array table
+    result:mapTenaryInplace(self, other, function(a,b,c) if b < c then return 1 else return 0 end end)
+  else
+    result:mapBinaryInplace(self, function(a,b) if b < other then return 1 else return 0 end end)
+  end
+  return result
+end
+
+function Array.le(self,other)
+  local result = Array.create(self.shape, Array.int8)
+  if type(other) == "table" then
+    -- asume Array table
+    result:mapTenaryInplace(self, other, function(a,b,c) if b <= c then return 1 else return 0 end end)
+  else
+    result:mapBinaryInplace(self, function(a,b) if b <= other then return 1 else return 0 end end)
+  end
+  return result
+end
+
+function Array.all(self)
+  local all_one = true
+  self:mapInplace(function(a) if a ~= 1 then all_one = false end return a end)
+  return all_one
+end
+
+function Array.any(self)
+  local any_one = false
+  self:mapInplace(function(a) if a == 1 then any_one = true end return a end)
+  return all_one
+end
+
+function Array.lookup(self,lut)
+-- lookup values in table based on array element values
+--
+-- required
+--  lut : the lookup table to be used
+  local result = Array.create(self.shape, lut.dtype)
+  local temp_lut = lut
+  result:mapBinaryInplace( self, function(a,b) return temp_lut.data[b] end)
+  return result
+end
+
+
+-- closure that inserts the coordinates into the result array
+local _nonzero_count = 0
+local _nonzero_ndim = 0
+local _nonzero_result
+
+local _nonzero_update_indices = function(a,pos)
+  if a ~= 0 then
+    for i=1,_nonzero_ndim,1 do
+      _nonzero_result[i].data[_nonzero_count] = pos[i]
+    end
+    _nonzero_count = _nonzero_count + 1
+  end
+  return a
+end 
+
+local _nonzero_count_nz = function(a)
+  if a ~= 0 then _nonzero_count = _nonzero_count + 1 end
+  return a
+end
+
+
+function Array.nonzero(self)
+-- get coord table of nonzero elements
+
+   -- reset shared upvalues
+  _nonzero_count = 0
+  _nonzero_ndim = #self.shape
+
+  -- determine number of nonzero elements
+  self:mapInplace(_nonzero_count_nz)
+
+  -- allocate arrays for dimension indices
+  _nonzero_result = {}
+  for i=1,_nonzero_ndim,1 do
+    _nonzero_result[i] = Array.create({_nonzero_count},Array.int32)
+  end
+
+  -- reset count, user for position in result array
+  _nonzero_count = 0
+  
+  self.mapInplace(self,_nonzero_update_indices, true)
+  return _nonzero_result
+end
+
+--
+--
+-- Dimensionality-specialized getter and setter functions
+--
+--
 
 function Array.get1(self,i)
   return self.data[i*self.strides[1]] 
@@ -461,212 +751,12 @@ function Array.setPos4(self, pos, val)
 end
 
 function Array.setPosN(self, pos, val)
+  -- TODO: slooow
   local offset = helpers.reduce(operator.add, helpers.binmap(operator.mul, pos, self.strides), 0)
   self.data[offset] = val
 end
 
-function Array.setCoordinates(self,coord, data)
-  local update_values
-  if type(data) == "table" then
-    assert(#data.shape == 1)
-    update_values = function(a, coord_index)
-      return data.data[coord_index*data.strides[1]]
-    end
-  else
-    update_values = function(a, coord_index)
-      return data
-    end
-  end
-  -- map over the coord array
-  self:mapCoordinates(coord, update_values)
-end
 
-function Array.getCoordinates(self,indices)
-  assert(#indices == self.ndim)
-  local result = Array.create({indices[1].shape[1]}, self.dtype)
-  local update_values = function(a, index)
-    result.data[index] = a -- the new array has no strides
-    return a
-  end
-  self:mapCoordinates(indices, update_values)
-  return result
-end
-
-function Array.assign(self,data)
-  if type(data) == "table" then
-    -- asume Array table
-    self:mapBinaryInplace( function(a,b) return b end )
-  else
-    self:mapInplace( function(x) return data end )
-  end
-end
-
-function Array.add(self,other)
-  if type(other) == "table" then
-    -- asume Array table
-    self:mapBinaryInplace(function(a,b) return a+b end, other)
-  else
-    self:mapInplace(function(a) return a + other end)
-  end
-end
-
-function Array.sub(self,other)
-  if type(other) == "table" then
-    -- asume Array table
-    self:mapBinaryInplace(function(a,b) return a-b end, other)
-  else
-    self:mapInplace(function(a) return a - other end)
-  end
-end
-
-function Array.mul(self,other)
-  if type(other) == "table" then
-    -- asume Array table
-    self:mapBinaryInplace(function(a,b) return a*b end, other)
-  else
-    self:mapInplace(function(a) return a * other end)
-  end
-end
-
-function Array.div(self,other)
-  if type(other) == "table" then
-    -- asume Array table
-    self:mapBinaryInplace(function(a,b) return a / b end, other)
-  else
-    self:mapInplace(function(a) return a / other end)
-  end
-end
-
-function Array.eq(self,other)
-  local result = Array.create(self.shape, Array.int8)
-  if type(other) == "table" then
-    -- asume Array table
-    result:mapTenaryInplace(function(a,b,c) if b == c then return 1 else return 0 end end, self, other)
-  else
-    result:mapBinaryInplace(function(a,b) if b == other then return 1 else return 0 end end, self)
-  end
-  return result
-end
-
-function Array.neq(self,other)
-  local result = Array.create(self.shape, Array.int8)
-  if type(other) == "table" then
-    -- asume Array table
-    result:mapTenaryInplace(function(a,b,c) if b == c then return 0 else return 1 end end, self, other)
-  else
-    result:mapBinaryInplace(function(a,b) if b == other then return 0 else return 1 end end, self)
-  end
-  return result
-end
-
-function Array.gt(self,other)
-  local result = Array.create(self.shape, Array.int8)
-  if type(other) == "table" then
-    -- asume Array table
-    result:mapTenaryInplace(function(a,b,c) if b > c then return 1 else return 0 end end, self, other)
-  else
-    result:mapBinaryInplace(function(a,b) if b > other then return 1 else return 0 end end, self)
-  end
-  return result
-end
-
-function Array.ge(self,other)
-  local result = Array.create(self.shape, Array.int8)
-  if type(other) == "table" then
-    -- asume Array table
-    result:mapTenaryInplace(function(a,b,c) if b >= c then return 1 else return 0 end end, self, other)
-  else
-    result:mapBinaryInplace(function(a,b) if b >= other then return 1 else return 0 end end, self)
-  end
-  return result
-end
-
-function Array.lt(self,other)
-  local result = Array.create(self.shape, Array.int8)
-  if type(other) == "table" then
-    -- asume Array table
-    result:mapTenaryInplace(function(a,b,c) if b < c then return 1 else return 0 end end, self, other)
-  else
-    result:mapBinaryInplace(function(a,b) if b < other then return 1 else return 0 end end, self)
-  end
-  return result
-end
-
-function Array.le(self,other)
-  local result = Array.create(self.shape, Array.int8)
-  if type(other) == "table" then
-    -- asume Array table
-    result:mapTenaryInplace(function(a,b,c) if b <= c then return 1 else return 0 end end, self, other)
-  else
-    result:mapBinaryInplace(function(a,b) if b <= other then return 1 else return 0 end end, self)
-  end
-  return result
-end
-
-function Array.all(self)
-  local all_one = true
-  self:mapInplace(function(a) if a ~= 1 then all_one = false end return a end)
-  return all_one
-end
-
-function Array.any(self)
-  local any_one = false
-  self:mapInplace(function(a) if a == 1 then any_one = true end return a end)
-  return all_one
-end
-
-
-function Array.lookup(self,lut)
-  local result = Array.create(self.shape, lut.dtype)
-  local temp_lut = lut
-  result:mapBinaryInplace( function(a,b) return temp_lut.data[b] end, self)
-  return result
-end
-
-
--- closure that inserts the coordinates into the result array
-local _nonzero_count = 0
-local _nonzero_ndim = 0
-local _nonzero_result
-
-local _nonzero_update_indices = function(a,pos)
-  if a ~= 0 then
-    for i=1,_nonzero_ndim,1 do
-      _nonzero_result[i].data[_nonzero_count] = pos[i]
-    end
-    _nonzero_count = _nonzero_count + 1
-  end
-  return a
-end 
-
-local _nonzero_count_nz = function(a)
-  if a ~= 0 then _nonzero_count = _nonzero_count + 1 end
-  return a
-end
-
--- test: create a special mapper for nonzero so that luajit compiles a fresh trace for this function
-local _nonzero_mapInplace = getMapInplace()
-
-function Array.nonzero(self)
-   -- reset shared upvalues
-  _nonzero_count = 0
-  _nonzero_ndim = #self.shape
-
-  -- determine number of nonzero elements
-  self:mapInplace(_nonzero_count_nz)
-
-  -- allocate arrays for dimension indices
-  _nonzero_result = {}
-  for i=1,_nonzero_ndim,1 do
-    _nonzero_result[i] = Array.create({_nonzero_count},Array.int32)
-  end
-
-  -- reset count, user for position in result array
-  _nonzero_count = 0
-  
-  self.mapInplace(self,_nonzero_update_indices, true)
-  return _nonzero_result
-end
 
 
 local _print_element = function(x)

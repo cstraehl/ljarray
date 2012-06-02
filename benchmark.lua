@@ -56,14 +56,14 @@ helpers.benchmark(function()  ta:mapInplace(function(a, pos) return a+1 end) end
 
 ta:assign(1)
 tb:assign(1)
-helpers.benchmark(function()  ta:mapBinaryInplace(function(a,b, pos) return a+b end , tb) end, bcount, "applyBinary")
+helpers.benchmark(function()  ta:mapBinaryInplace(tb, function(a,b, pos) return a+b end ) end, bcount, "applyBinary")
 --ta:view({0,0,0},{10,10,1}):print()
 assert(ta:eq(bcount+1):all())
 
 ta:assign(1)
 tb:assign(1)
 tc:assign(1)
-helpers.benchmark(function()  ta:mapTenaryInplace(function(a,b,c, pos) return a+b+c end, tb, tc) end, bcount, "applyTenary")
+helpers.benchmark(function()  ta:mapTenaryInplace(tb,tc,function(a,b,c, pos) return a+b+c end) end, bcount, "applyTenary")
 --ta:view({0,0,0},{10,10,1}):print()
 --
 assert(ta:eq(2*bcount+1):all())
