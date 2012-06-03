@@ -14,13 +14,15 @@
 local math = require("math") 
 local ffi = require("ffi")
 local bitop = require("bit")
-local helpers = require("helpers") 
+local load_succes,helpers = pcall(require,"helpers")
+if not load_succes then
+  helpers = require("ljarray.helpers")
+end
 
 local Array = {}
 Array.__index = Array
 
 local isnarray = function(a)
-  print(type(a))
   if type(a) == "table" and (a.__metatable == Array or a._type == "narray") then
     return true
   else
@@ -37,6 +39,7 @@ Array.uint32 = ffi.typeof("unsigned int[?]");
 Array.uint64 = ffi.typeof("unsigned long[?]");
 Array.float32 = ffi.typeof("float[?]");
 Array.float64 = ffi.typeof("double[?]");
+Array.pointer = ffi.typeof("void *");
  
 
 
@@ -108,6 +111,7 @@ function Array.fromData(ptr, dtype, shape, strides, source)
   setmetatable(array,Array)
   array._type = "narray"
   array.data = ptr
+  array.memory = tonumber(ffi.cast("int", array.data))  
   array.dtype = dtype
   if type(strides) == "table" then
     array.strides = strides
@@ -886,6 +890,32 @@ end
 Array.__tostring = function(self)
   local result = "\nArray" .. "(shape = " .. helpers.to_string(self.shape) .. ", stride = ".. helpers.to_string(self.strides) ..  ", dtype = ".. tostring(self.dtype) .. ")\n"
   return result
+end
+
+
+-- pointer types
+local cpointer = {}
+cpointer.int8 = ffi.typeof("char*");
+cpointer.int32 = ffi.typeof("int*");
+cpointer.int64 = ffi.typeof("long*");
+cpointer.uint8 = ffi.typeof("unsigned char*");
+cpointer.uint32 = ffi.typeof("unsigned int*");
+cpointer.uint64 = ffi.typeof("unsigned long*");
+cpointer.float32 = ffi.typeof("float*");
+cpointer.float64 = ffi.typeof("double*");
+
+function Array.fromNumpyArray(ndarray)
+  local dtype = cpointer[tostring(ndarray.dtype)]
+  local data = ffi.cast(dtype,ndarray.ctypes.data)
+  local shape = {}
+  local strides = {}
+  local elem_size = ndarray.nbytes / ndarray.size
+  for i = 1,ndarray.ndim,1 do
+    shape[i] = ndarray.shape[i-1]
+    strides[i] = ndarray.strides[i-1] / elem_size
+  end
+  local array = Array.fromData(data, dtype, shape, strides, ndarray)
+  return array
 end
 
 return Array            
