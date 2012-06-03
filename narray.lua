@@ -20,7 +20,8 @@ local Array = {}
 Array.__index = Array
 
 local isnarray = function(a)
-  if type(a) == "table" and (a. __metatable == Array or a._type == "narray") then
+  print(type(a))
+  if type(a) == "table" and (a.__metatable == Array or a._type == "narray") then
     return true
   else
     return false
@@ -556,10 +557,12 @@ function Array.getCoordinates(self,indices)
   return result
 end
 
-function Array.where(self, boolarray, a, b, order)
+function Array.where(self, boolarray, a, b)
 -- set array values depending on truth of boolarray to a (1) or b (0)
 -- can also be used as a static function, i.e. without self
--- in this case the arguments are shifted to the left
+-- in this case the arguments are shifted to the left and the
+-- last argument (b) is an optional memory order ("c","f") for
+-- the result array.
 --
 -- required
 --  boolarray: array of shape self.shape containt 0 and 1s
@@ -567,7 +570,8 @@ function Array.where(self, boolarray, a, b, order)
 --  b  : a single array element of an array of shape self.shape
 --
 
-  if not b then -- assume static call
+  if not b or type(b) == "string" then -- assume static call
+    order = b
     b = a
     a = boolarray
     boolarray = self
@@ -576,10 +580,8 @@ function Array.where(self, boolarray, a, b, order)
       dtype = a.dtype
     elseif isnarray(b) then
       dtype = b.dtype
-    else
-      error("narray.where: first or second argument must be of type narray")
     end
-    self = Array.create(boolarray.shape, dtype)
+    self = Array.create(boolarray.shape, dtype, order)
   end
 
   local nz = boolarray:nonzero()
@@ -638,8 +640,8 @@ function Array.div(self,other)
   end
 end
 
-function Array.eq(self,other)
-  local result = Array.create(self.shape, Array.int8)
+function Array.eq(self,other, order)
+  local result = Array.create(self.shape, Array.int8, order)
   if isnarray(other) then
     -- asume Array table
     result:mapTenaryInplace(self, other, function(a,b,c) if b == c then return 1 else return 0 end end)
@@ -649,8 +651,8 @@ function Array.eq(self,other)
   return result
 end
 
-function Array.neq(self,other)
-  local result = Array.create(self.shape, Array.int8)
+function Array.neq(self,other, order)
+  local result = Array.create(self.shape, Array.int8, order)
   if isnarray(other) then
     -- asume Array table
     result:mapTenaryInplace(self, other, function(a,b,c) if b == c then return 0 else return 1 end end)
@@ -660,8 +662,8 @@ function Array.neq(self,other)
   return result
 end
 
-function Array.gt(self,other)
-  local result = Array.create(self.shape, Array.int8)
+function Array.gt(self,other, order)
+  local result = Array.create(self.shape, Array.int8, order)
   if isnarray(other) then
     -- asume Array table
     result:mapTenaryInplace(self, other, function(a,b,c) if b > c then return 1 else return 0 end end)
@@ -671,8 +673,8 @@ function Array.gt(self,other)
   return result
 end
 
-function Array.ge(self,other)
-  local result = Array.create(self.shape, Array.int8)
+function Array.ge(self,other, order)
+  local result = Array.create(self.shape, Array.int8, order)
   if isnarray(other) then
     -- asume Array table
     result:mapTenaryInplace(self, other, function(a,b,c) if b >= c then return 1 else return 0 end end)
@@ -682,8 +684,8 @@ function Array.ge(self,other)
   return result
 end
 
-function Array.lt(self,other)
-  local result = Array.create(self.shape, Array.int8)
+function Array.lt(self,other, order)
+  local result = Array.create(self.shape, Array.int8, order)
   if isnarray(other) then
     -- asume Array table
     result:mapTenaryInplace(self, other, function(a,b,c) if b < c then return 1 else return 0 end end)
@@ -693,8 +695,8 @@ function Array.lt(self,other)
   return result
 end
 
-function Array.le(self,other)
-  local result = Array.create(self.shape, Array.int8)
+function Array.le(self,other, order)
+  local result = Array.create(self.shape, Array.int8, order)
   if isnarray(other) then
     -- asume Array table
     result:mapTenaryInplace(self, other, function(a,b,c) if b <= c then return 1 else return 0 end end)
@@ -725,12 +727,12 @@ function Array.any(self)
   return all_one
 end
 
-function Array.lookup(self,lut)
+function Array.lookup(self,lut, order)
 -- lookup values in table based on array element values
 --
 -- required
 --  lut : the lookup table to be used
-  local result = Array.create(self.shape, lut.dtype)
+  local result = Array.create(self.shape, lut.dtype, order)
   local temp_lut = lut
   result:mapBinaryInplace( self, function(a,b) return temp_lut.data[b] end)
   return result
@@ -758,7 +760,7 @@ local _nonzero_count_nz = function(a)
 end
 
 
-function Array.nonzero(self)
+function Array.nonzero(self, order)
 -- get coord table of nonzero elements
 
    -- reset shared upvalues
@@ -771,7 +773,7 @@ function Array.nonzero(self)
   -- allocate arrays for dimension indices
   _nonzero_result = {}
   for i=1,_nonzero_ndim,1 do
-    _nonzero_result[i] = Array.create({_nonzero_count},Array.int32)
+    _nonzero_result[i] = Array.create({_nonzero_count},Array.int32, order)
   end
 
   -- reset count, user for position in result array
