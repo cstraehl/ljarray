@@ -1,4 +1,4 @@
---  ljarray.lua - a tiny multidimensional array library for luajit
+--  narray.lua - a tiny multidimensional array library for luajit
 --  Copyright Christoph Straehle (cstraehle@gmail.com)
 --  License: BSD
 --
@@ -18,6 +18,14 @@ local helpers = require("helpers")
 
 local Array = {}
 Array.__index = Array
+
+local isnarray = function(a)
+  if type(a) == "table" and (a. __metatable == Array or a._type == "narray") then
+    return true
+  else
+    return false
+  end
+end
 
 -- some VLA ffi types for arrays
 Array.int8 = ffi.typeof("char[?]");
@@ -97,6 +105,7 @@ end
 function Array.fromData(ptr, dtype, shape, strides, source)
   local array = {}
   setmetatable(array,Array)
+  array._type = "narray"
   array.data = ptr
   array.dtype = dtype
   if type(strides) == "table" then
@@ -126,7 +135,7 @@ function Array.fromData(ptr, dtype, shape, strides, source)
     end
   end
   array.shape = shape
-  if source == nil then
+  if not source then
     array.source = array    
   else
     array.source = source
@@ -266,6 +275,8 @@ function Array.mapInplace(self,f, call_with_position)
 --            value of the array element as first argument
 --            and optionally table with the coordinate of
 --            the current element
+--            the return value of the function for each
+--            element is stored in the array.
 -- optional
 --  call_with_position : if true, the funciton f will be
 --            called with the currents array element position
@@ -318,7 +329,9 @@ function Array.mapBinaryInplace(self,other,f, call_with_position)
 --            value of the array element as first argument
 --            and the value of the second arrays as second arguemnt.
 --            third argument is optionally a table with the coordinate of
---            the current elements
+--            the current elements.
+--            The return value of f for each element pair
+--            is stored in the first array.
 -- optional
 --  call_with_position : if true, the funciton f will be
 --            called with the currents array element position
@@ -393,7 +406,9 @@ function Array.mapTenaryInplace(self,other_b, other_c,f, call_with_position)
 --            and the value of the second arrays as second arguemnt
 --            and the value of the third array as third argument.
 --            third argument is optionally a table with the coordinate of
---            the current elements
+--            the current elements.
+--            The return value of f for each element triple is stored
+--            in the first array.
 -- optional
 --  call_with_position : if true, the funciton f will be
 --            called with the currents array element position
@@ -473,6 +488,8 @@ function Array.mapCoordinates(self,coord, f)
 --            coordinate.
 --            second argument is the current joint index inthe
 --            coordinate table arrays.
+--            The return value of f for each coordinate is stored
+--            in the array.
   assert(#coord == #self.shape)
 
   local temp, offset, i
@@ -508,7 +525,7 @@ function Array.setCoordinates(self,coord, data)
 --            of coordinates
 --
   local update_values
-  if type(data) == "table" then
+  if isnarray(data) then
     assert(#data.shape == 1)
     update_values = function(a, coord_index)
       return data:get1(coord_index)
@@ -539,7 +556,7 @@ function Array.getCoordinates(self,indices)
   return result
 end
 
-function Array.where(self, boolarray, a, b)
+function Array.where(self, boolarray, a, b, order)
 -- set array values depending on truth of boolarray to a (1) or b (0)
 -- can also be used as a static function, i.e. without self
 -- in this case the arguments are shifted to the left
@@ -548,23 +565,26 @@ function Array.where(self, boolarray, a, b)
 --  boolarray: array of shape self.shape containt 0 and 1s
 --  a  : a single array elemnt or an array of shape self.shape
 --  b  : a single array element of an array of shape self.shape
+--
 
-  if not b then
+  if not b then -- assume static call
     b = a
     a = boolarray
     boolarray = self
     local dtype = Array.float32
-    if type(a) == "table" then
+    if isnarray(a) then
       dtype = a.dtype
-    elseif type(b) == "table" then
+    elseif isnarray(b) then
       dtype = b.dtype
+    else
+      error("narray.where: first or second argument must be of type narray")
     end
     self = Array.create(boolarray.shape, dtype)
   end
 
   local nz = boolarray:nonzero()
   self:assign(b)
-  if type(a) == "table" then -- assume array
+  if isnarray(a) then 
     local values = a:getCoordinates(nz)
     self:setCoordinates(nz,values)
   else -- asume element
@@ -574,7 +594,7 @@ function Array.where(self, boolarray, a, b)
 end
 
 function Array.assign(self,data)
-  if type(data) == "table" then
+  if isnarray(data) then
     -- asume Array table
     self:mapBinaryInplace(data, function(a,b) return b end)
   else
@@ -583,7 +603,7 @@ function Array.assign(self,data)
 end
 
 function Array.add(self,other)
-  if type(other) == "table" then
+  if isnarray(other) then
     -- asume Array table
     self:mapBinaryInplace(other, function(a,b) return a+b end)
   else
@@ -592,7 +612,7 @@ function Array.add(self,other)
 end
 
 function Array.sub(self,other)
-  if type(other) == "table" then
+  if isnarray(other) then
     -- asume Array table
     self:mapBinaryInplace(other, function(a,b) return a-b end)
   else
@@ -601,7 +621,7 @@ function Array.sub(self,other)
 end
 
 function Array.mul(self,other)
-  if type(other) == "table" then
+  if isnarray(other) then
     -- asume Array table
     self:mapBinaryInplace(other, function(a,b) return a*b end)
   else
@@ -610,7 +630,7 @@ function Array.mul(self,other)
 end
 
 function Array.div(self,other)
-  if type(other) == "table" then
+  if isnarray(other) then
     -- asume Array table
     self:mapBinaryInplace(other, function(a,b) return a / b end)
   else
@@ -620,7 +640,7 @@ end
 
 function Array.eq(self,other)
   local result = Array.create(self.shape, Array.int8)
-  if type(other) == "table" then
+  if isnarray(other) then
     -- asume Array table
     result:mapTenaryInplace(self, other, function(a,b,c) if b == c then return 1 else return 0 end end)
   else
@@ -631,7 +651,7 @@ end
 
 function Array.neq(self,other)
   local result = Array.create(self.shape, Array.int8)
-  if type(other) == "table" then
+  if isnarray(other) then
     -- asume Array table
     result:mapTenaryInplace(self, other, function(a,b,c) if b == c then return 0 else return 1 end end)
   else
@@ -642,7 +662,7 @@ end
 
 function Array.gt(self,other)
   local result = Array.create(self.shape, Array.int8)
-  if type(other) == "table" then
+  if isnarray(other) then
     -- asume Array table
     result:mapTenaryInplace(self, other, function(a,b,c) if b > c then return 1 else return 0 end end)
   else
@@ -653,7 +673,7 @@ end
 
 function Array.ge(self,other)
   local result = Array.create(self.shape, Array.int8)
-  if type(other) == "table" then
+  if isnarray(other) then
     -- asume Array table
     result:mapTenaryInplace(self, other, function(a,b,c) if b >= c then return 1 else return 0 end end)
   else
@@ -664,7 +684,7 @@ end
 
 function Array.lt(self,other)
   local result = Array.create(self.shape, Array.int8)
-  if type(other) == "table" then
+  if isnarray(other) then
     -- asume Array table
     result:mapTenaryInplace(self, other, function(a,b,c) if b < c then return 1 else return 0 end end)
   else
@@ -675,7 +695,7 @@ end
 
 function Array.le(self,other)
   local result = Array.create(self.shape, Array.int8)
-  if type(other) == "table" then
+  if isnarray(other) then
     -- asume Array table
     result:mapTenaryInplace(self, other, function(a,b,c) if b <= c then return 1 else return 0 end end)
   else
@@ -683,6 +703,15 @@ function Array.le(self,other)
   end
   return result
 end
+
+
+Array.__add = Array.add
+Array.__sub = Array.sub
+Array.__mul = Array.mul
+Array.__div = Array.div
+
+
+
 
 function Array.all(self)
   local all_one = true
@@ -846,13 +875,15 @@ local _print_element = function(x)
 end
 
 function Array.print(self)
-  io.write("---------------\n")
   self:mapInplace( _print_element)
   io.write("\nArray", tostring(self), "(shape = ", helpers.to_string(self.shape))
   io.write(", stride = ", helpers.to_string(self.strides))
   io.write(", dtype = ", tostring(self.dtype), ")\n")
-  io.write("---------------\n")
 end
 
+Array.__tostring = function(self)
+  local result = "\nArray" .. "(shape = " .. helpers.to_string(self.shape) .. ", stride = ".. helpers.to_string(self.strides) ..  ", dtype = ".. tostring(self.dtype) .. ")\n"
+  return result
+end
 
-return Array
+return Array            

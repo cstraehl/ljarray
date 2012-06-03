@@ -70,7 +70,7 @@ local function table_print (tt, indent, done)
         table.insert(sb, string.rep (" ", indent)) -- indent it
         table.insert(sb, "}\n");
       elseif "number" == type(key) then
-        table.insert(sb, string.format("\"%s\"", tostring(value)))
+        table.insert(sb, string.format("%s ", tostring(value)))
       else
         table.insert(sb, string.format(
             "%s = \"%s\"\n", tostring (key), tostring(value)))

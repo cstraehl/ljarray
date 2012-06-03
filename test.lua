@@ -56,6 +56,9 @@ tc = narray.create(test_shape, narray.int32)
 
 ta_1 = ta:bind(1,50,100)
 ta_2 = ta:bind(1,0,50)
+
+print(ta_1)
+
 ta_1:assign(0)
 ta_2:assign(1)
 tb = narray.where(ta, 100, tc)
