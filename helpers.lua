@@ -10,7 +10,7 @@ benchmark = function(f, count, name)
     f()
   end
   local t2 = os.clock()
-  print("Benchmark "..name.." took ".. (t2-t1)/(1.0*count) .." seconds")
+  print("Benchmark "..name.." took ".. (t2-t1)/(1.0*count) .." seconds/iteration")
 end
 
 binmap = function(func, tbl1, tbl2)

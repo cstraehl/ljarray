@@ -626,7 +626,6 @@ end
 
 function Array.assign(self,data)
   if isnarray(data) then
-    -- asume Array table
     self:mapBinaryInplace(data, operator.assign)
   else
     _assign_constant_value = data
@@ -642,7 +641,6 @@ end
 
 function Array.add(self,other)
   if isnarray(other) then
-    -- asume Array table
     self:mapBinaryInplace(other, operator.add)
   else
     _add_constant_value = other
@@ -658,7 +656,6 @@ end
 
 function Array.sub(self,other)
   if isnarray(other) then
-    -- asume Array table
     self:mapBinaryInplace(other, operator.sub)
   else
     _sub_constant_value = other
@@ -673,7 +670,6 @@ end
 
 function Array.mul(self,other)
   if isnarray(other) then
-    -- asume Array table
     self:mapBinaryInplace(other, operator.mul)
   else
     _mul_constant_value = other
@@ -689,7 +685,6 @@ end
 
 function Array.div(self,other)
   if isnarray(other) then
-    -- asume Array table
     self:mapBinaryInplace(other, operator.div)
   else
     _div_constant_value = other
@@ -710,7 +705,6 @@ end
 function Array.eq(self,other, order)
   local result = Array.create(self.shape, Array.int8, order)
   if isnarray(other) then
-    -- asume Array table
     result:mapTenaryInplace(self, other, function(a,b,c) if b == c then return 1 else return 0 end end)
   else
     _eq_constant_value = ffi.cast(self.element_type, other)
@@ -732,7 +726,6 @@ end
 function Array.neq(self,other, order)
   local result = Array.create(self.shape, Array.int8, order)
   if isnarray(other) then
-    -- asume Array table
     result:mapTenaryInplace(self, other, function(a,b,c) if b == c then return 0 else return 1 end end)
   else
     _neq_constant_value = ffi.cast(self.element_type, other)
@@ -754,7 +747,6 @@ end
 function Array.gt(self,other, order)
   local result = Array.create(self.shape, Array.int8, order)
   if isnarray(other) then
-    -- asume Array table
     result:mapTenaryInplace(self, other, function(a,b,c) if b > c then return 1 else return 0 end end)
   else
     _gt_constant_value = ffi.cast(self.element_type, other)
@@ -776,7 +768,6 @@ end
 function Array.ge(self,other, order)
   local result = Array.create(self.shape, Array.int8, order)
   if isnarray(other) then
-    -- asume Array table
     result:mapTenaryInplace(self, other, function(a,b,c) if b >= c then return 1 else return 0 end end)
   else
     _ge_constant_value = ffi.cast(self.element_type, other)
@@ -798,7 +789,6 @@ end
 function Array.lt(self,other, order)
   local result = Array.create(self.shape, Array.int8, order)
   if isnarray(other) then
-    -- asume Array table
     result:mapTenaryInplace(self, other, function(a,b,c) if b < c then return 1 else return 0 end end)
   else
     _lt_constant_value = ffi.cast(self.element_type, other)
@@ -820,7 +810,6 @@ end
 function Array.le(self,other, order)
   local result = Array.create(self.shape, Array.int8, order)
   if isnarray(other) then
-    -- asume Array table
     result:mapTenaryInplace(self, other, function(a,b,c) if b <= c then return 1 else return 0 end end)
   else
     _le_constant_value = ffi.cast(self.element_type, other)
@@ -876,11 +865,9 @@ function Array.lookup(self,lut, order)
 end
 
 
--- closure that inserts the coordinates into the result array
 local _nonzero_count = 0
 local _nonzero_ndim = 0
 local _nonzero_result
-
 local _nonzero_update_indices = function(a,pos)
   if a ~= 0 then
     for i=1,_nonzero_ndim,1 do
@@ -890,12 +877,10 @@ local _nonzero_update_indices = function(a,pos)
   end
   return a
 end 
-
 local _nonzero_count_nz = function(a)
   if a ~= 0 then _nonzero_count = _nonzero_count + 1 end
   return a
 end
-
 
 function Array.nonzero(self, order)
 -- get coord table of nonzero elements
@@ -960,7 +945,7 @@ end
 
 function Array.getPosN(self,pos)
   -- TODO:implement
-  assert(1==2)
+  error("")
 end
 
 function Array.set1(self, i, val)
