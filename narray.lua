@@ -6,21 +6,40 @@
 --
 -- Investigate LUAJIT strangeness:
 --
---   calling a function defined as Array:function(a,b,c) 
+-- 1) luajit seems to specialize to a function only one time
+--    calling the function a second time with different arugment
+--    types does not seem to trigger a retrace.
+--    leads to very different benchmark results depending
+--    on order of benchmark execution.
+--
+--    Trying to force a retrace/new specialization by using closures
+--    does not seem to work..
+--
+--    Ugly Fix: -Omaxtrace=single digit
+--    this seems to flush the trace cache often enough to force
+--    an agressive respecialization.
+--
+-- 2) calling a function defined as Array:function(a,b,c) 
 --   is slower then calling the same function
 --   defined as Array.function(self, ab, c) ??
 --
 --
-local math = require("math") 
-local ffi = require("ffi")
-local bitop = require("bit")
-local load_succes,helpers = pcall(require,"helpers")
-if not load_succes then
-  helpers = require("ljarray.helpers")
-end
 
 local Array = {}
 Array.__index = Array
+
+local math = require("math") 
+local ffi = require("ffi")
+local bitop = require("bit")
+local load_success,helpers = pcall(require,"helpers")
+if not load_success then
+  helpers = require("ljarray.helpers")
+end
+
+-- throw errors on global variable declaration
+local _helpers_forbid_globals_backup = helpers.__FORBID_GLOBALS
+helpers.__FORBID_GLOBALS = true
+
 
 local isnarray = function(a)
   if type(a) == "table" and (a.__metatable == Array or a._type == "narray") then
@@ -31,15 +50,34 @@ local isnarray = function(a)
 end
 
 -- some VLA ffi types for arrays
+Array.element_type = {}
+
 Array.int8 = ffi.typeof("char[?]");
+Array.element_type[Array.int8] = ffi.typeof("char")
+
 Array.int32 = ffi.typeof("int[?]");
+Array.element_type[Array.int32] = ffi.typeof("int")
+
 Array.int64 = ffi.typeof("long[?]");
+Array.element_type[Array.int64] = ffi.typeof("long")
+
 Array.uint8 = ffi.typeof("unsigned char[?]");
+Array.element_type[Array.uint8] = ffi.typeof("unsigned char")
+
 Array.uint32 = ffi.typeof("unsigned int[?]");
+Array.element_type[Array.uint32] = ffi.typeof("unsigned int")
+
 Array.uint64 = ffi.typeof("unsigned long[?]");
+Array.element_type[Array.uint64] = ffi.typeof("unsigned long")
+
 Array.float32 = ffi.typeof("float[?]");
+Array.element_type[Array.float32] = ffi.typeof("float")
+
 Array.float64 = ffi.typeof("double[?]");
+Array.element_type[Array.float64] = ffi.typeof("double")
+
 Array.pointer = ffi.typeof("void *");
+Array.element_type[Array.pointer] = ffi.typeof("void *")
  
 
 
@@ -113,6 +151,7 @@ function Array.fromData(ptr, dtype, shape, strides, source)
   array.data = ptr
   array.memory = tonumber(ffi.cast("int", array.data))  
   array.dtype = dtype
+  array.element_type = Array.element_type[dtype]
   if type(strides) == "table" then
     array.strides = strides
     if #strides == 1 then
@@ -346,8 +385,6 @@ function Array.mapBinaryInplace(self,other,f, call_with_position)
   local d = 1
   local base_offset_a = 0
   local base_offset_b = 0
-  local fct = other.get3
-  local fct2 = other.get
 
   while pos[1] < self.shape[1] do
     -- print(helpers.to_string(pos), d)
@@ -362,12 +399,6 @@ function Array.mapBinaryInplace(self,other,f, call_with_position)
       for offset_a=0,stop,stride_a do
         temp_a = self.data[base_offset_a + offset_a]
         temp_b = other.data[base_offset_b + offset_b] 
-        --temp_b = other:get3(pos[1],pos[2],pos[3])--
-        --temp_b = other.data[pos[1]*other.strides[1] + pos[2]*other.strides[2] + pos[3]*other.strides[3]]
-        --temp_b = get3(other,pos[1],pos[2],pos[3])
-        -- temp_b = fct(other,pos[1],pos[2],pos[3])
-        -- temp_b = fct2(other,pos)
-        -- temp_b = other:getPos(pos)
         
         if call_with_position ~= true then
           self.data[base_offset_a + offset_a] = f(temp_a, temp_b)
@@ -395,7 +426,6 @@ function Array.mapBinaryInplace(self,other,f, call_with_position)
     else
       d = d + 1
     end
-    -- print("blubb2")
   end
 end
 
@@ -475,7 +505,6 @@ function Array.mapTenaryInplace(self,other_b, other_c,f, call_with_position)
     else
       d = d + 1
     end
-    -- print("blubb3")
   end
 end
 
@@ -519,6 +548,15 @@ function Array.mapCoordinates(self,coord, f)
   end
 end
 
+
+local _set_coord_data
+local _set_coord1 = function(a, index)
+  return _set_coord_data:get1(index)
+end
+local _set_coord2 = function(a, index)
+  return _set_coord_data
+end
+
 function Array.setCoordinates(self,coord, data)
 -- set array value for some coordinates
 --
@@ -529,21 +567,23 @@ function Array.setCoordinates(self,coord, data)
 --            an array of elements whose length euquals the number
 --            of coordinates
 --
-  local update_values
+  _set_coord_data = data
   if isnarray(data) then
     assert(#data.shape == 1)
-    update_values = function(a, coord_index)
-      return data:get1(coord_index)
-    end
+    -- map over the coord array
+    self:mapCoordinates(coord, _set_coord1)
   else
-    update_values = function(a, coord_index)
-      return data
-    end
+    -- map over the coord array
+    self:mapCoordinates(coord, _set_coord2)
   end
-  -- map over the coord array
-  self:mapCoordinates(coord, update_values)
 end
 
+
+local _get_coord_result
+local _get_coord_update_values = function(a, index)
+  _get_coord_result.data[index] = a
+  return a
+end
 
 function Array.getCoordinates(self,indices)
 -- get array values for some coordinates
@@ -552,13 +592,9 @@ function Array.getCoordinates(self,indices)
 --  coord   : table of coordinate indices in the correspoinding dimension
 --            length of coord table must equal array dimensionality
   assert(#indices == self.ndim)
-  local result = Array.create({indices[1].shape[1]}, self.dtype)
-  local update_values = function(a, index)
-    result.data[index] = a -- the new array has no strides
-    return a
-  end
-  self:mapCoordinates(indices, update_values)
-  return result
+  _get_coord_result = Array.create({indices[1].shape[1]}, self.dtype)
+  self:mapCoordinates(indices, _get_coord_update_values)
+  return _get_coord_result
 end
 
 function Array.where(self, boolarray, a, b)
@@ -575,7 +611,7 @@ function Array.where(self, boolarray, a, b)
 --
 
   if not b or type(b) == "string" then -- assume static call
-    order = b
+    local order = b
     b = a
     a = boolarray
     boolarray = self
@@ -599,48 +635,92 @@ function Array.where(self, boolarray, a, b)
   return self
 end
 
+
+local _assign_constant_value
+local _assign_constant = function(x)
+  return _assign_constant_value
+end
+
 function Array.assign(self,data)
   if isnarray(data) then
     -- asume Array table
-    self:mapBinaryInplace(data, function(a,b) return b end)
+    self:mapBinaryInplace(data, operator.assign)
   else
-    self:mapInplace( function(x) return data end )
+    _assign_constant_value = data
+    self:mapInplace( _assign_constant )
   end
+end
+
+
+local _add_constant_value
+local _add_constant = function(x)
+  return x + _add_constant_value
 end
 
 function Array.add(self,other)
   if isnarray(other) then
     -- asume Array table
-    self:mapBinaryInplace(other, function(a,b) return a+b end)
+    self:mapBinaryInplace(other, operator.add)
   else
-    self:mapInplace(function(a) return a + other end)
+    _add_constant_value = other
+    self:mapInplace(_add_constant)
   end
+end
+
+
+local _sub_constant_value
+local _sub_constant = function(x)
+  return x - _sub_constant_value
 end
 
 function Array.sub(self,other)
   if isnarray(other) then
     -- asume Array table
-    self:mapBinaryInplace(other, function(a,b) return a-b end)
+    self:mapBinaryInplace(other, operator.sub)
   else
-    self:mapInplace(function(a) return a - other end)
+    _sub_constant_value = other
+    self:mapInplace(_sub_constant)
   end
+end
+
+local _mul_constant_value
+local _mul_constant = function(x)
+  return x * _mul_constant_value
 end
 
 function Array.mul(self,other)
   if isnarray(other) then
     -- asume Array table
-    self:mapBinaryInplace(other, function(a,b) return a*b end)
+    self:mapBinaryInplace(other, operator.mul)
   else
-    self:mapInplace(function(a) return a * other end)
+    _mul_constant_value = other
+    self:mapInplace(_mul_constant)
   end
+end
+
+
+local _div_constant_value
+local _div_constant = function(x)
+  return x / _div_constant_value
 end
 
 function Array.div(self,other)
   if isnarray(other) then
     -- asume Array table
-    self:mapBinaryInplace(other, function(a,b) return a / b end)
+    self:mapBinaryInplace(other, operator.div)
   else
-    self:mapInplace(function(a) return a / other end)
+    _div_constant_value = other
+    self:mapInplace(_div_constant)
+  end
+end
+
+
+local _eq_constant_value
+local _eq_constant = function(a,b)
+  if b == _eq_constant_value then
+    return 1
+  else 
+    return 0
   end
 end
 
@@ -650,9 +730,20 @@ function Array.eq(self,other, order)
     -- asume Array table
     result:mapTenaryInplace(self, other, function(a,b,c) if b == c then return 1 else return 0 end end)
   else
-    result:mapBinaryInplace(self, function(a,b) if b == other then return 1 else return 0 end end)
+    _eq_constant_value = ffi.cast(self.element_type, other)
+    result:mapBinaryInplace(self, _eq_constant)
   end
   return result
+end
+
+
+local _neq_constant_value
+local _neq_constant = function(a,b)
+  if b ~= _neq_constant_value then
+    return 1
+  else
+    return 0
+  end
 end
 
 function Array.neq(self,other, order)
@@ -661,9 +752,20 @@ function Array.neq(self,other, order)
     -- asume Array table
     result:mapTenaryInplace(self, other, function(a,b,c) if b == c then return 0 else return 1 end end)
   else
-    result:mapBinaryInplace(self, function(a,b) if b == other then return 0 else return 1 end end)
+    _neq_constant_value = ffi.cast(self.element_type, other)
+    result:mapBinaryInplace(self, _neq_constant)
   end
   return result
+end
+
+
+local _gt_constant_value
+local _gt_constant = function(a,b)
+  if b > _gt_constant_value then
+    return 1
+  else
+    return 0
+  end
 end
 
 function Array.gt(self,other, order)
@@ -672,9 +774,20 @@ function Array.gt(self,other, order)
     -- asume Array table
     result:mapTenaryInplace(self, other, function(a,b,c) if b > c then return 1 else return 0 end end)
   else
-    result:mapBinaryInplace(self, function(a,b) if b > other then return 1 else return 0 end end)
+    _gt_constant_value = ffi.cast(self.element_type, other)
+    result:mapBinaryInplace(self, _gt_constant)
   end
   return result
+end
+
+
+local _ge_constant_value
+local _ge_constant = function(a,b)
+  if b >= _ge_constant_value then
+    return 1
+  else
+    return 0
+  end
 end
 
 function Array.ge(self,other, order)
@@ -683,9 +796,20 @@ function Array.ge(self,other, order)
     -- asume Array table
     result:mapTenaryInplace(self, other, function(a,b,c) if b >= c then return 1 else return 0 end end)
   else
-    result:mapBinaryInplace(self, function(a,b) if b >= other then return 1 else return 0 end end)
+    _ge_constant_value = ffi.cast(self.element_type, other)
+    result:mapBinaryInplace(self, _ge_constant)
   end
   return result
+end
+
+
+local _lt_constant_value
+local _lt_constant = function(a,b)
+  if b < _lt_constant_value then
+    return 1
+  else
+    return 0
+  end
 end
 
 function Array.lt(self,other, order)
@@ -694,9 +818,20 @@ function Array.lt(self,other, order)
     -- asume Array table
     result:mapTenaryInplace(self, other, function(a,b,c) if b < c then return 1 else return 0 end end)
   else
-    result:mapBinaryInplace(self, function(a,b) if b < other then return 1 else return 0 end end)
+    _lt_constant_value = ffi.cast(self.element_type, other)
+    result:mapBinaryInplace(self, _lt_constant)
   end
   return result
+end
+
+
+local _le_constant_value
+local _le_constant = function(a,b)
+  if b <= _re_constant_value then
+    return 1
+  else
+    return 0
+  end
 end
 
 function Array.le(self,other, order)
@@ -705,30 +840,45 @@ function Array.le(self,other, order)
     -- asume Array table
     result:mapTenaryInplace(self, other, function(a,b,c) if b <= c then return 1 else return 0 end end)
   else
-    result:mapBinaryInplace(self, function(a,b) if b <= other then return 1 else return 0 end end)
+    _le_constant_value = ffi.cast(self.element_type, other)
+    result:mapBinaryInplace(self, _le_constant)
   end
   return result
 end
 
 
-Array.__add = Array.add
-Array.__sub = Array.sub
-Array.__mul = Array.mul
-Array.__div = Array.div
-
-
-
+local _all_result
+local _all = function(a)
+  if a == 0 then
+    _all_result = false
+  end
+  return a
+end
 
 function Array.all(self)
-  local all_one = true
-  self:mapInplace(function(a) if a ~= 1 then all_one = false end return a end)
-  return all_one
+  _all_result = true
+  self:mapInplace(_all)
+  return _all_result
+end
+
+
+local _any_result
+local _any = function(a)
+  if a ~= 0 then
+    _any_result = true
+  end
+  return a
 end
 
 function Array.any(self)
-  local any_one = false
-  self:mapInplace(function(a) if a == 1 then any_one = true end return a end)
-  return all_one
+  _any_result = false
+  self:mapInplace(_any)
+  return _any_result
+end
+
+local _lookup_lut
+local _lookup = function(a,b)
+  return _lookup_lut.data[b]
 end
 
 function Array.lookup(self,lut, order)
@@ -737,8 +887,8 @@ function Array.lookup(self,lut, order)
 -- required
 --  lut : the lookup table to be used
   local result = Array.create(self.shape, lut.dtype, order)
-  local temp_lut = lut
-  result:mapBinaryInplace( self, function(a,b) return temp_lut.data[b] end)
+  _lookup_lut = lut
+  result:mapBinaryInplace( self, _lookup)
   return result
 end
 
@@ -917,5 +1067,8 @@ function Array.fromNumpyArray(ndarray)
   local array = Array.fromData(data, dtype, shape, strides, ndarray)
   return array
 end
+
+-- restore __FORBID_GLOBALS behaviour
+helpers.__FORBID_GLOBALS = _helpers_forbid_globals_backup
 
 return Array            
