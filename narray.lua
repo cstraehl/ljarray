@@ -207,13 +207,15 @@ function Array.create(shape, dtype, order)
    -- filling. 
    -- BEWARE: array is uninitialized 
    local size = helpers.reduce(operator.mul, shape, 1)
-   local data = dtype(size, {0})
+
+   -- NOTE: the {0} initializer prevents the VLA array from being initialized
+   local data = dtype(size, {0}) 
 
    return Array.fromData(data,dtype,shape,order)
 end
 
 function Array.zeros(shape,dtype)
--- convenience function to fill initialize zero filled array
+-- convenience function to initialize zero filled array
   
   local array = Array.create(shape, dtype)
   array:assign(0)
@@ -235,7 +237,7 @@ function Array.copy(self,order)
 end
 
 function Array.view(self,start, stop)
--- construct a strided view to an array
+-- construct a strided view to an subarray of self
 -- 
 -- required parameters
 --  start: start coordinates of view, table of length shape
@@ -290,25 +292,6 @@ function Array.bind(self,dimension, start, stop)
   end
 
   return Array.fromData(data,self.dtype, shape, strides, self)
-end
-
-function Array.ravelIndex(self,indices)
-  local result = helpers.reduce(operator.add, helpers.binmap(operator.mul, indices, helpers.cumreduce(operator.mul, helpers.reverse(self.shape), 1)), 0)
-  return result
-end
-
-function Array.unravelIndex(self,index)
-  local indices = {}
-  local temp = helpers.cumreduce(operator.mul, helpers.reverse(self.shape), 1)
-  for i=1,#temp,1 do
-    local v = temp[i]
-    indices[i] = math.floor(index / v)
-    if indices[i] == self.shape[i] then
-      indices[i] = indices[i] - 1
-    end
-    index = index - indices[i] * v
-  end
-  return indices
 end
 
 function Array.mapInplace(self,f, call_with_position)
@@ -558,7 +541,7 @@ local _set_coord2 = function(a, index)
 end
 
 function Array.setCoordinates(self,coord, data)
--- set array value for some coordinates
+-- set array values for some coordinates
 --
 -- required
 --  coord   : table of coordinate indices in the correspoinding dimension
