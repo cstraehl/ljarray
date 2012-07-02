@@ -100,7 +100,7 @@ local operator = {
 -- helper method that specializes some critical functions depending
 -- on the number of dimensions of the array
 function Array.fixMethodsDim(self)
-  self.ndim = #self.shape
+  self.ndim = self.ndim
   if self.ndim == 1 then
     self.get = Array.get1
     self.getPos = Array.getPos1
@@ -152,31 +152,56 @@ function Array.fromData(ptr, dtype, shape, strides, source)
   array.memory = tonumber(ffi.cast("int", array.data))  
   array.dtype = dtype
   array.element_type = Array.element_type[dtype]
+  
+  if shape[0] == nil then
+    array.ndim = #shape
+    local newshape = {}
+    -- 1 based shape
+    for i = 1, array.ndim, 1 do
+      newshape[i-1] = shape[i]
+    end
+    shape = newshape
+  else
+    array.ndim = #shape + 1
+  end
+
   if type(strides) == "table" then
+    if strides[0] == nil then
+      local newstrides = {}
+      -- 1 based strides
+      for i = 1, array.ndim, 1 do
+        newstrides[i-1] = strides[i]
+      end
+      strides = newstrides
+    end
     array.strides = strides
-    if #strides == 1 then
+    if array.ndim == 1 then
       array.order = "c" -- default is c order
     else
-      if strides[2] > strides[1] then
+      if strides[1] > strides[0] then
         array.order = "f"
       else
         array.order = "c"
       end
+    assert(#array.strides == #shape)
     end
   elseif strides == "f" then
     array.order = "f"
     array.strides = {} 
-    array.strides[1] = 1
-    for i = 2,#shape,1 do
+    array.strides[0] = 1
+    for i = 1,array.ndim-1,1 do
       array.strides[i] = shape[i-1] * array.strides[i-1]
     end
+    assert(#array.strides == #shape)
   elseif strides == "c" or not strides then
     array.order = "c"
-    array.strides = {} 
-    array.strides[#shape] = 1
-    for i = #shape-1,1,-1 do
-      array.strides[i] = shape[i+1] * array.strides[i+1]
+    local strides = {} 
+    strides[array.ndim-1] = 1
+    for i = array.ndim-2,0,-1 do
+      strides[i] = shape[i+1] * strides[i+1]
     end
+    array.strides = strides
+    assert(#(array.strides) == #shape)
   end
   array.shape = shape
   if not source then
@@ -187,6 +212,12 @@ function Array.fromData(ptr, dtype, shape, strides, source)
   -- calculate size (number of elements)
   array.size = helpers.reduce(operator.mul, shape, 1)
   array:fixMethodsDim()
+
+  assert(#array.shape == #array.strides)
+  assert(array.shape[0] ~= nil)
+  assert(array.strides[0] ~= nil)
+
+
   return array
 end
 
@@ -206,11 +237,10 @@ function Array.create(shape, dtype, order)
    -- the {0} is a trick to prevent zero
    -- filling. 
    -- BEWARE: array is uninitialized 
-   local size = helpers.reduce(operator.mul, shape, 1)
+   local size = helpers.reduce(operator.mul, helpers.zerobased(shape), 1)
 
    -- NOTE: the {0} initializer prevents the VLA array from being initialized
    local data = dtype(size, {0}) 
-
    return Array.fromData(data,dtype,shape,order)
 end
 
@@ -243,11 +273,23 @@ function Array.view(self,start, stop)
 --  start: start coordinates of view, table of length shape
 --  stop : stop coordinates of view, table of length shape
   assert(#start == #stop)
-  assert(#start == #self.shape)
+  assert(#start == self.ndim)
+
+  if start[0] == nil then
+    newstart = {}
+    newstop = {}
+    for i=0,self.ndim-1,1 do
+      newstart[i] = start[i+1]
+      newstop[i] = stop[i+1]
+    end
+    start = newstart
+    stop = newstop
+  end
+
 
   -- calcualte data pointer offset
   local offset = 0
-  for i=1,#start,1 do
+  for i=0,self.ndim-1,1 do
     offset = offset + start[i] * self.strides[i]
   end
   local data = self.data + offset
@@ -273,15 +315,18 @@ function Array.bind(self,dimension, start, stop)
 --
 -- if no stop index is given the ndim of the returned
 -- view is self.ndim-1
+  assert(self.shape[dimension] >= stop)
+  assert(self.shape[dimension] >= start)
+  assert(start<stop)
   local data = self.data + self.strides[dimension]*(start)
   local shape = {}
   local strides = {}
   if not stop then
-    for i=1,dimension,1 do
+    for i=0,dimension-1,1 do
       array.strides[i] = self.strides[i]
       array.shape[i] = self.shape[i]
     end
-    for i=dimension+1,#self.shape,1 do
+    for i=dimension,self.ndim-1,1 do
       array.strides[i-1] = self.strides[i]
       array.shape[i-1] = self.shape[i]
     end
@@ -310,15 +355,15 @@ function Array.mapInplace(self,f, call_with_position)
     local temp, offset, i
     local pos = helpers.binmap(operator.sub, self.shape, self.shape)
     local ndim = self.ndim
-    local d = 1
+    local d = 0
     local offseta = 0
-    while pos[1] < self.shape[1] do
-      -- print(helpers.to_string(pos), d)
-      if d == ndim then
+    while pos[0] < self.shape[0] do
+      --print("pos: ", helpers.to_string(pos), d)
+      if d == ndim-1 then
         -- iterate over array
         local stride = self.strides[d]
         local stop = (self.shape[d]-1 )*stride
-        pos[ndim] = 0
+        pos[d] = 0
         if call_with_position ~= true then
           for offset=0,stop,stride do
             self.data[offseta + offset] = f(self.data[offseta + offset])
@@ -326,15 +371,15 @@ function Array.mapInplace(self,f, call_with_position)
         else
           for offset=0,stop,stride do
             self.data[offseta + offset] = f(self.data[offseta + offset], pos)
-            pos[ndim] = pos[ndim] + 1
+            pos[d] = pos[d] + 1
           end
         end
-        pos[ndim] = self.shape[d]
-        offseta = offseta + self.shape[d]*(self.strides[d])
+        pos[d] = self.shape[d] - 1 
+        offseta = offseta + (self.shape[d]-1)*self.strides[d]
       end
-      if ((pos[d] == self.shape[d])and(d ~= 1)) then
+      if ((pos[d] == self.shape[d] - 1)and(d ~= 0)) then
         pos[d] = 0
-        offseta = offseta - self.strides[d]*(self.shape[d])
+        offseta = offseta - self.strides[d]*(self.shape[d]-1)
 
         d = d - 1
         pos[d] = pos[d] + 1
@@ -364,20 +409,25 @@ function Array.mapBinaryInplace(self,other,f, call_with_position)
 --            called with the currents array element position
   local temp_a, temp_b, offset_a, offset_b, i
   local pos = helpers.binmap(operator.sub, self.shape, self.shape)
+  assert(pos[0] ~= nil)
   local ndim = self.ndim
-  local d = 1
+  assert(pos[ndim] == nil)
+  local d = 0
   local base_offset_a = 0
   local base_offset_b = 0
 
-  while pos[1] < self.shape[1] do
-    -- print(helpers.to_string(pos), d)
-    if d == ndim then
+
+  while pos[0] < self.shape[0] do
+    --print(helpers.to_string(pos), d)
+    --print(base_offset_a, base_offset_b)
+
+    if d == ndim - 1 then
       -- iterate over array
       local stride_a = self.strides[d]
       local stride_b = other.strides[d]
       offset_b = 0
 
-      local stop = (self.shape[d]-1 ) *stride_a
+      local stop = self.shape[d] *stride_a - 1
       pos[d] = 0
       for offset_a=0,stop,stride_a do
         temp_a = self.data[base_offset_a + offset_a]
@@ -393,14 +443,14 @@ function Array.mapBinaryInplace(self,other,f, call_with_position)
         offset_b = offset_b + stride_b
       end
 
-      pos[d] = self.shape[d]
-      base_offset_a = base_offset_a + self.shape[d]*(self.strides[d])
-      base_offset_b = base_offset_b + other.shape[d]*(other.strides[d])
+      pos[d] = self.shape[d]- 1
+      base_offset_a = base_offset_a + (self.shape[d]-1)*self.strides[d]
+      base_offset_b = base_offset_b + (other.shape[d]-1)*other.strides[d]
     end
-    if ((pos[d] == self.shape[d])and(d ~= 1)) then
+    if ((pos[d] == self.shape[d] - 1)and(d ~= 0)) then
       pos[d] = 0
-      base_offset_a = base_offset_a - self.strides[d]*(self.shape[d])
-      base_offset_b = base_offset_b - other.strides[d]*(other.shape[d])
+      base_offset_a = base_offset_a - self.strides[d]*(self.shape[d]-1)
+      base_offset_b = base_offset_b - other.strides[d]*(other.shape[d]-1)
 
       d = d - 1
       pos[d] = pos[d] + 1
@@ -432,15 +482,17 @@ function Array.mapTenaryInplace(self,other_b, other_c,f, call_with_position)
 --            called with the currents array element position
   local temp_a, temp_b, temp_c, offset_a, offset_b, offset_c, i
   local pos = helpers.binmap(operator.sub, self.shape, self.shape)
-  local ndim = #self.shape
-  local d = 1
+  assert(pos[0]~=nil)
+  local ndim = self.ndim
+  assert(pos[ndim] == nil)
+  local d = 0
   local base_offset_a = 0
   local base_offset_b = 0
   local base_offset_c = 0
 
-  while pos[1] < self.shape[1] do
-    -- print(helpers.to_string(pos), d)
-    if d == ndim then
+  while pos[0] < self.shape[0] do
+    --print(helpers.to_string(pos), d)
+    if d == ndim-1 then
       -- iterate over array
       local stride_a = self.strides[d]
       local stride_b = other_b.strides[d]
@@ -449,8 +501,8 @@ function Array.mapTenaryInplace(self,other_b, other_c,f, call_with_position)
       offset_b = 0
       offset_c = 0
 
-      local stop = (self.shape[d]-1 ) *stride_a
-      pos[ndim] = 0
+      local stop = self.shape[d] *stride_a -1
+      pos[d] = 0
 
       for offset_a=0,stop,stride_a do
         temp_a = self.data[base_offset_a + offset_a]
@@ -461,7 +513,7 @@ function Array.mapTenaryInplace(self,other_b, other_c,f, call_with_position)
           self.data[base_offset_a + offset_a] = f(temp_a, temp_b, temp_c)
         else
           self.data[base_offset_a + offset_a] = f(temp_a, temp_b, temp_c, pos)
-          pos[ndim] = pos[ndim] + 1
+          pos[d] = pos[d] + 1
         end
 
         self.data[base_offset_a + offset_a] = f(temp_a, temp_b, temp_c)
@@ -469,16 +521,16 @@ function Array.mapTenaryInplace(self,other_b, other_c,f, call_with_position)
         offset_c = offset_c + stride_c
       end
 
-      pos[d] = self.shape[d]
-      base_offset_a = base_offset_a + self.shape[d]*(self.strides[d])
-      base_offset_b = base_offset_b + other_b.shape[d]*(other_b.strides[d])
-      base_offset_c = base_offset_c + other_c.shape[d]*(other_c.strides[d])
+      pos[d] = self.shape[d] - 1
+      base_offset_a = base_offset_a + (self.shape[d]-1)*self.strides[d]
+      base_offset_b = base_offset_b + (other_b.shape[d]-1)*other_b.strides[d]
+      base_offset_c = base_offset_c + (other_c.shape[d]-1)*other_c.strides[d]
     end
-    if ((pos[d] == self.shape[d])and(d ~= 1)) then
+    if ((pos[d] == self.shape[d] - 1)and(d ~= 0)) then
       pos[d] = 0
-      base_offset_a = base_offset_a - self.strides[d]*(self.shape[d])
-      base_offset_b = base_offset_b - other_b.strides[d]*(other_b.shape[d])
-      base_offset_c = base_offset_c - other_c.strides[d]*(other_c.shape[d])
+      base_offset_a = base_offset_a - self.strides[d]*(self.shape[d]-1)
+      base_offset_b = base_offset_b - other_b.strides[d]*(other_b.shape[d]-1)
+      base_offset_c = base_offset_c - other_c.strides[d]*(other_c.shape[d]-1)
 
       d = d - 1
       pos[d] = pos[d] + 1
@@ -507,26 +559,26 @@ function Array.mapCoordinates(self,coord, f)
 --            coordinate table arrays.
 --            The return value of f for each coordinate is stored
 --            in the array.
-  assert(#coord == #self.shape)
+  assert(#coord == #self.shape, tostring(#coord ) .. " " .. tostring(#self.shape))
 
   local temp, offset, i
   local pos = helpers.binmap(operator.sub, self.shape, self.shape)
   local ndim = self.ndim
-  local d = 1
+  local d = 0
   
   -- precalculate offsets to prevent a small inner loop
   local offsets = Array.create(coord[1].shape, Array.int32)
-  for i=0,coord[1].shape[1]-1,1 do
-    offsets.data[i] = self.strides[1]*coord[1]:get1(i)
+  for i=0,coord[0].shape[0]-1,1 do
+    offsets.data[i] = self.strides[0]*coord[0]:get1(i)
   end
-  for j=2,ndim,1 do
-    for i=0,coord[1].shape[1]-1,1 do
+  for j=1,ndim-1,1 do
+    for i=0,coord[0].shape[0]-1,1 do
       offsets.data[i] = offsets.data[i] + self.strides[j]*coord[j]:get1(i)
     end
   end
 
   -- apply the function
-  for i=0,coord[1].shape[1]-1,1 do
+  for i=0,coord[0].shape[0]-1,1 do
     self.data[offsets.data[i]] = f(self.data[offsets.data[i]], i)
   end
 end
@@ -550,9 +602,11 @@ function Array.setCoordinates(self,coord, data)
 --            an array of elements whose length euquals the number
 --            of coordinates
 --
+  local coord = helpers.zerobased(coord)
+  assert(#coord  + 1 == self.ndim)
   _set_coord_data = data
   if isnarray(data) then
-    assert(#data.shape == 1)
+    assert(data.ndim == 1)
     -- map over the coord array
     self:mapCoordinates(coord, _set_coord1)
   else
@@ -574,8 +628,9 @@ function Array.getCoordinates(self,indices)
 -- required
 --  coord   : table of coordinate indices in the correspoinding dimension
 --            length of coord table must equal array dimensionality
-  assert(#indices == self.ndim)
-  _get_coord_result = Array.create({indices[1].shape[1]}, self.dtype)
+  local indices = helpers.zerobased(indices)
+  assert(#indices  + 1 == self.ndim)
+  _get_coord_result = Array.create({indices[0].shape[0]}, self.dtype)
   self:mapCoordinates(indices, _get_coord_update_values)
   return _get_coord_result
 end
@@ -870,7 +925,7 @@ local _nonzero_ndim = 0
 local _nonzero_result
 local _nonzero_update_indices = function(a,pos)
   if a ~= 0 then
-    for i=1,_nonzero_ndim,1 do
+    for i=0,_nonzero_ndim-1,1 do
       _nonzero_result[i].data[_nonzero_count] = pos[i]
     end
     _nonzero_count = _nonzero_count + 1
@@ -887,14 +942,14 @@ function Array.nonzero(self, order)
 
    -- reset shared upvalues
   _nonzero_count = 0
-  _nonzero_ndim = #self.shape
+  _nonzero_ndim = self.ndim
 
   -- determine number of nonzero elements
   self:mapInplace(_nonzero_count_nz)
 
   -- allocate arrays for dimension indices
   _nonzero_result = {}
-  for i=1,_nonzero_ndim,1 do
+  for i=0,_nonzero_ndim-1,1 do
     _nonzero_result[i] = Array.create({_nonzero_count},Array.int32, order)
   end
 
@@ -912,35 +967,35 @@ end
 --
 
 function Array.get1(self,i)
-  return self.data[i*self.strides[1]] 
+  return self.data[i*self.strides[0]] 
 end
 
 function Array.get2(self,i,j)
-  return self.data[i*self.strides[1] + j*self.strides[2]] 
+  return self.data[i*self.strides[0] + j*self.strides[1]] 
 end
 
 function Array.get3(self, i,j,k)
-  return self.data[i*self.strides[1] + j*self.strides[2] + k*self.strides[3]] 
+  return self.data[i*self.strides[0] + j*self.strides[1] + k*self.strides[2]] 
 end
 
 function Array.get4(self,i,j,k,l)
-  return self.data[i*self.strides[1] + j*self.strides[2] + k*self.strides[3] + l*self.strides[4]] 
+  return self.data[i*self.strides[0] + j*self.strides[1] + k*self.strides[2] + l*self.strides[3]] 
 end
 
 function Array.getPos1(self, pos)
-  return self:get3(pos[1])
+  return self:get3(pos[0])
 end
 
 function Array.getPos2(self, pos)
-  return self:get3(pos[1],pos[2])
+  return self:get3(pos[0],pos[1])
 end
 
 function Array.getPos3(self, pos)
-  return self:get3(pos[1],pos[2],pos[3])
+  return self:get3(pos[0],pos[1],pos[2])
 end
 
 function Array.getPos4(self, pos)
-  return self:get3(pos[1],pos[2],pos[3], pos[4])
+  return self:get3(pos[0],pos[1],pos[2], pos[3])
 end
 
 function Array.getPosN(self,pos)
@@ -949,19 +1004,19 @@ function Array.getPosN(self,pos)
 end
 
 function Array.set1(self, i, val)
-  self.data[i*self.strides[1]] = val
+  self.data[i*self.strides[0]] = val
 end
 
 function Array.set2(self, i,j, val)
-  self.data[i*self.strides[1] + j*self.strides[2]] = val
+  self.data[i*self.strides[0] + j*self.strides[1]] = val
 end
 
 function Array.set3(self, i,j,k, val)
-  self.data[i*self.strides[1] + j*self.strides[2] + k*self.strides[3]] = val
+  self.data[i*self.strides[0] + j*self.strides[1] + k*self.strides[2]] = val
 end
 
 function Array.set4(self, i,j,k,l, val)
-  self.data[i*self.strides[1] + j*self.strides[2] + k*self.strides[3] + l*self.strides[4]] = val
+  self.data[i*self.strides[0] + j*self.strides[1] + k*self.strides[2] + l*self.strides[3]] = val
 end
 
 function Array.setN(self,val, ...)
@@ -969,19 +1024,19 @@ function Array.setN(self,val, ...)
 end
 
 function Array.setPos1(self, pos, val)
-  self:set1(pos[1],val)
+  self:set1(pos[0],val)
 end
 
 function Array.setPos2(self, pos, val)
-  self:set1(pos[1],pos[2],val)
+  self:set1(pos[0],pos[1],val)
 end
 
 function Array.setPos3(self, pos, val)
-  self:set1(pos[1],pos[2],pos[3],val)
+  self:set1(pos[0],pos[1],pos[2],val)
 end
 
 function Array.setPos4(self, pos, val)
-  self:set1(pos[1],pos[2],pos[3],pos[4],val)
+  self:set1(pos[0],pos[1],pos[2],pos[3],val)
 end
 
 function Array.setPosN(self, pos, val)
@@ -1028,7 +1083,7 @@ function Array.fromNumpyArray(ndarray)
   local shape = {}
   local strides = {}
   local elem_size = ndarray.nbytes / ndarray.size
-  for i = 1,ndarray.ndim,1 do
+  for i = 0,ndarray.ndim-1,1 do
     shape[i] = ndarray.shape[i-1]
     strides[i] = ndarray.strides[i-1] / elem_size
   end

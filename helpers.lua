@@ -13,9 +13,28 @@ benchmark = function(f, count, name)
   print("Benchmark "..name.." took ".. (t2-t1)/(1.0*count) .." seconds/iteration")
 end
 
+zerobased = function(tbl)
+  local result = tbl
+  if tbl[0] == nil then
+    result = {}
+    for i=1,#tbl,1 do
+      result[i-1] = tbl[i]
+    end
+  end
+  return result
+end
+
 binmap = function(func, tbl1, tbl2)
   local newtbl = {}
-  for i=1,#tbl1,1 do
+  local start = 0
+  local stop = #tbl1
+  assert(tbl1[0] ~= nil)
+  if tbl1[0] == nil then
+    assert(tbl2[0] == nil)
+    start = 1
+    stop = #tbl1
+  end
+  for i=start,stop,1 do
       newtbl[i] = func(tbl1[i], tbl2[i])
   end
   return newtbl
@@ -23,7 +42,14 @@ end
 
 copy = function(tbl)
   local newtbl = {}
-  for i=1,#tbl,1 do
+  local start = 0
+  local stop = #tbl
+  assert(tbl[0] ~= nil)
+  if tbl[0] == nil then
+    start = 1
+    stop = #tbl 
+  end
+  for i=start,stop,1 do
     newtbl[i] = tbl[i]
   end
   return newtbl
@@ -31,7 +57,14 @@ end
 
 reduce = function(func, tbl, initial)
   local result = initial
-  for i=1,#tbl,1 do
+  local start = 0
+  local stop = #tbl
+  assert(tbl[0] ~= nil)
+  if tbl[0] == nil then
+    start = 1
+    stop = #tbl
+  end
+  for i=start,stop,1 do
       result = func(result, tbl[i])
   end
   return result
@@ -40,7 +73,14 @@ end
 cumreduce = function(func, tbl, initial)
   local newtbl = {}
   local result = initial
-  for i=1,#tbl,1 do
+  local start = 0
+  local stop = #tbl+1
+  assert(tbl[0] ~= nil)
+  if tbl[0] == nil then
+    start = 1
+    stop = #tbl
+  end
+  for i=start,stop,1 do
       newtbl[i] = func(result, tbl[i])
   end
   return newtbl
@@ -48,9 +88,17 @@ end
 
 reverse = function(tbl)
   local newtbl = {}
-  local length = #tbl
-  for i=1,#tbl,1 do
-      newtbl[length - i + 1] = tbl[i]
+  local length = #tbl 
+  local start = 0
+  local stop = #tbl
+  assert(tbl[0] ~= nil)
+  if tbl[0] == nil then
+    start = 1
+    stop = #tbl 
+    length = #tbl + 1
+  end
+  for i=start,stop,1 do
+      newtbl[length - i] = tbl[i]
   end
   return newtbl
 end
