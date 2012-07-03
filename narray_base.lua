@@ -70,7 +70,52 @@ function Array.mapInplace(self,f, call_with_position)
     end
 end
 
-function Array.iterate_pos(self)
+function Array.coordinates(self)
+  local pos = helpers.binmap(operator.sub, self.shape, self.shape)
+  local ndim = self.ndim
+  local d = 0
+  local offset = 0
+  local offseta = 0
+
+  -- performance optimization for singleton dimensions
+  local singletons = 0
+  for i = ndim-1,0,-1 do
+    if self.shape[i] == 1 then
+      singletons = singletons + 1
+    else
+      break
+    end
+  end
+  ndim = ndim - singletons
+  d = ndim - 1
+  pos[d] = -1
+  local stride = self.strides[d]
+  local stop = (self.shape[d]-1 )*stride
+
+  return function()
+    -- print("pos: ", helpers.to_string(pos), d)
+    if offset >= stop then
+      offset = -stride
+      pos[d] = -1
+      d = d - 1
+      pos[d] = pos[d] + 1
+      while pos[d] >= self.shape[d] do
+        if pos[0] == self.shape[0] then
+          return nil
+        end
+        pos[d] = 0
+        d = d - 1
+        pos[d] = pos[d] + 1
+      end
+      d = ndim - 1
+    end
+    pos[d] = pos[d] + 1
+    offset = offset + stride
+    return pos
+  end
+end
+
+function Array.values(self)
   local pos = helpers.binmap(operator.sub, self.shape, self.shape)
   local ndim = self.ndim
   local d = 0
@@ -105,7 +150,7 @@ function Array.iterate_pos(self)
           return nil
         end
         pos[d] = 0
-        offseta = offseta - (self.shape[d]-1)*self.strides[d]
+        offseta = offseta - (self.shape[d])*self.strides[d]
         d = d - 1
         pos[d] = pos[d] + 1
         offseta = offseta + self.strides[d]
@@ -114,7 +159,54 @@ function Array.iterate_pos(self)
     end
     pos[d] = pos[d] + 1
     offset = offset + stride
-    return pos
+    return self.data[offseta + offset]
+  end
+end
+
+function Array.pairs(self)
+  local pos = helpers.binmap(operator.sub, self.shape, self.shape)
+  local ndim = self.ndim
+  local d = 0
+  local offset = 0
+  local offseta = 0
+
+  -- performance optimization for singleton dimensions
+  local singletons = 0
+  for i = ndim-1,0,-1 do
+    if self.shape[i] == 1 then
+      singletons = singletons + 1
+    else
+      break
+    end
+  end
+  ndim = ndim - singletons
+  d = ndim - 1
+  local stride = self.strides[d]
+  local stop = (self.shape[d]-1 )*stride
+
+  return function()
+    -- print("pos: ", helpers.to_string(pos), d)
+    if offset >= stop then
+      offset = -stride
+      pos[d] = -1
+      d = d - 1
+      pos[d] = pos[d] + 1
+      offseta = offseta + self.strides[d]
+      while pos[d] >= self.shape[d] do
+        if pos[0] == self.shape[0] then
+          return nil, nil
+        end
+        pos[d] = 0
+        offseta = offseta - (self.shape[d])*self.strides[d]
+        d = d - 1
+        pos[d] = pos[d] + 1
+        offseta = offseta + self.strides[d]
+      end
+      d = ndim - 1
+    end
+    pos[d] = pos[d] + 1
+    offset = offset + stride
+    return pos, self.data[offseta + offset]
   end
 end
 

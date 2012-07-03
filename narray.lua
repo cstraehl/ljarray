@@ -28,11 +28,6 @@
 Array = {}
 Array.__index = Array
 
-local filepath = debug.getinfo(1).source:match("@(.*)$") 
-local dir = string.gsub(filepath, '/[^/]+$', '') .. "/"
-package.path = dir .. "/?.lua;" .. package.path
-print(" including into package.path :" .. dir)
-
 local math = require("math") 
 local ffi = require("ffi")
 local bitop = require("bit")
@@ -43,6 +38,12 @@ local operator = helpers.operator
 local _helpers_forbid_globals_backup = helpers.__FORBID_GLOBALS
 helpers.__FORBID_GLOBALS = true
 
+-- extend package.path with path of this .lua file:
+local filepath = debug.getinfo(1).source:match("@(.*)$") 
+local dir = string.gsub(filepath, '/[^/]+$', '') .. "/"
+package.path = dir .. "/?.lua;" .. package.path
+
+-- load additional functionality
 require("narray_base")
 require("narray_math")
 
