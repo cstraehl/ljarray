@@ -3,6 +3,31 @@ local math = require("math")
 
 module(..., package.seeall)
 
+operator = {
+     mod = math.mod;
+     pow = math.pow;
+     add = function(n,m) return n + m end;
+     sub = function(n,m) return n - m end;
+     mul = function(n,m) return n * m end;
+     div = function(n,m) return n / m end;
+     gt  = function(n,m) return n > m end;
+     lt  = function(n,m) return n < m end;
+     eq  = function(n,m) return n == m end;
+     le  = function(n,m) return n <= m end;
+     ge  = function(n,m) return n >= m end;
+     ne  = function(n,m) return n ~= m end;
+     assign  = function(a,b) return b end; 
+ }
+
+isnarray = function(a)
+  if type(a) == "table" and (a.__metatable == Array or a._type == "narray") then
+    return true
+  else
+    return false
+  end
+end
+
+
 -- benchmarking function
 benchmark = function(f, count, name)
   local t1 = os.clock()

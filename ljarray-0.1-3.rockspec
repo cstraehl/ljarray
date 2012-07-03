@@ -22,6 +22,8 @@ build = {
    type = "builtin",
    modules = {
       ["ljarray.narray"] = "narray.lua",
+      ["ljarray.narray_base"] = "narray_base.lua",
+      ["ljarray.narray_math"] = "narray_math.lua",
       ["ljarray.helpers"] = "helpers.lua",
       ["ljarray.benchmark"] = "benchmark.lua",
    }
