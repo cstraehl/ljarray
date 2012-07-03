@@ -195,7 +195,7 @@ end
 
 
 local _all_result
-local _all = function(a)
+local _all = function(a, pos)
   if a == 0 then
     _all_result = false
   end
@@ -204,7 +204,7 @@ end
 
 function Array.all(self)
   _all_result = true
-  self:mapInplace(_all)
+  self:mapInplace(_all, true)
   return _all_result
 end
 
@@ -223,59 +223,3 @@ function Array.any(self)
   return _any_result
 end
 
-local _lookup_lut
-local _lookup = function(a,b)
-  return _lookup_lut.data[b]
-end
-
-function Array.lookup(self,lut, order)
--- lookup values in table based on array element values
---
--- required
---  lut : the lookup table to be used
-  local result = Array.create(self.shape, lut.dtype, order)
-  _lookup_lut = lut
-  result:mapBinaryInplace( self, _lookup)
-  return result
-end
-
-
-local _nonzero_count = 0
-local _nonzero_ndim = 0
-local _nonzero_result
-local _nonzero_update_indices = function(a,pos)
-  if a ~= 0 then
-    for i=0,_nonzero_ndim-1,1 do
-      _nonzero_result[i].data[_nonzero_count] = pos[i]
-    end
-    _nonzero_count = _nonzero_count + 1
-  end
-  return a
-end 
-local _nonzero_count_nz = function(a)
-  if a ~= 0 then _nonzero_count = _nonzero_count + 1 end
-  return a
-end
-
-function Array.nonzero(self, order)
--- get coord table of nonzero elements
-
-   -- reset shared upvalues
-  _nonzero_count = 0
-  _nonzero_ndim = self.ndim
-
-  -- determine number of nonzero elements
-  self:mapInplace(_nonzero_count_nz)
-
-  -- allocate arrays for dimension indices
-  _nonzero_result = {}
-  for i=0,_nonzero_ndim-1,1 do
-    _nonzero_result[i] = Array.create({_nonzero_count},Array.int32, order)
-  end
-
-  -- reset count, user for position in result array
-  _nonzero_count = 0
-  
-  self.mapInplace(self,_nonzero_update_indices, true)
-  return _nonzero_result
-end

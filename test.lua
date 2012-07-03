@@ -1,11 +1,11 @@
 local narray = require("narray")
 
-test_shape = {100,20,30}
+test_shape = {100,3,6}
 
 -- test copy to fortran order
 ta = narray.create(test_shape, narray.int32)
-tb = ta:copy("f")
-assert(tb.order == "f")
+tb = ta:copy("c")
+assert(tb.order == "c")
 assert(ta:eq(tb):all())
 
 -- test copy to c order
@@ -48,7 +48,8 @@ ta_1:assign(0)
 ta_2:assign(1)
 tb = narray.where(ta, tc, 200)
 tb_2 = tb:bind(0,0,50)
-assert(tb_2:eq(tc):all())
+tc_2 = tc:bind(0,0,50)
+assert(tb_2:eq(tc_2):all())
 
 -- test narray.where number, array
 ta = narray.create(test_shape, narray.int32)
@@ -61,7 +62,8 @@ ta_1:assign(0)
 ta_2:assign(1)
 tb = narray.where(ta, 100, tc)
 tb_1 = tb:bind(0,50,100)
-assert(tb_1:eq(tc):all())
+tc_1 = tc:bind(0,50,100)
+assert(tb_1:eq(tc_1):all())
 
 -- test narray all()
 ta:assign(1)
