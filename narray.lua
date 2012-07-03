@@ -317,11 +317,11 @@ function Array.bind(self,dimension, start, stop)
 -- view is self.ndim-1
   assert(self.shape[dimension] >= stop)
   assert(self.shape[dimension] >= start)
-  assert(start<stop)
+  assert(start<=stop)
   local data = self.data + self.strides[dimension]*(start)
   local shape = {}
   local strides = {}
-  if not stop then
+  if not stop or stop == start then
     for i=0,dimension-1,1 do
       array.strides[i] = self.strides[i]
       array.shape[i] = self.shape[i]
@@ -357,6 +357,19 @@ function Array.mapInplace(self,f, call_with_position)
     local ndim = self.ndim
     local d = 0
     local offseta = 0
+
+    -- performance optimization for singleton dimensions
+    local singletons = 0
+    for i = ndim-1,0,-1 do
+      if self.shape[i] == 1 then
+        singletons = singletons + 1
+      else
+        break
+      end
+    end
+    ndim = ndim - singletons
+
+
     while pos[0] < self.shape[0] do
       --print("pos: ", helpers.to_string(pos), d)
       if d == ndim-1 then
@@ -415,6 +428,17 @@ function Array.mapBinaryInplace(self,other,f, call_with_position)
   local d = 0
   local base_offset_a = 0
   local base_offset_b = 0
+    
+  -- performance optimization for singleton dimensions
+  local singletons = 0
+  for i = ndim-1,0,-1 do
+    if self.shape[i] == 1 then
+      singletons = singletons + 1
+    else
+      break
+    end
+  end
+  ndim = ndim - singletons
 
 
   while pos[0] < self.shape[0] do
@@ -489,6 +513,17 @@ function Array.mapTenaryInplace(self,other_b, other_c,f, call_with_position)
   local base_offset_a = 0
   local base_offset_b = 0
   local base_offset_c = 0
+  
+  -- performance optimization for singleton dimensions
+  local singletons = 0
+  for i = ndim-1,0,-1 do
+    if self.shape[i] == 1 then
+      singletons = singletons + 1
+    else
+      break
+    end
+  end
+  ndim = ndim - singletons
 
   while pos[0] < self.shape[0] do
     --print(helpers.to_string(pos), d)
@@ -1084,8 +1119,8 @@ function Array.fromNumpyArray(ndarray)
   local strides = {}
   local elem_size = ndarray.nbytes / ndarray.size
   for i = 0,ndarray.ndim-1,1 do
-    shape[i] = ndarray.shape[i-1]
-    strides[i] = ndarray.strides[i-1] / elem_size
+    shape[i] = ndarray.shape[i]
+    strides[i] = ndarray.strides[i] / elem_size
   end
   local array = Array.fromData(data, dtype, shape, strides, ndarray)
   return array

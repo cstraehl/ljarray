@@ -2,18 +2,24 @@ local narray = require("narray")
 
 local bcount = 200
 local bshape = {100,100,100}
+local bshape1 = {100,100,100,1}
 local btype  = narray.int32
 
 local ta = narray.create(bshape, narray.int32)
+local ta1 = narray.create(bshape1, narray.int32)
 local taf = narray.create(bshape, narray.float32)
 local tb = narray.create(bshape, narray.int32)
+local tb1 = narray.create(bshape1, narray.int32)
 local tc = narray.create(bshape, narray.int32)
+local tc1 = narray.create(bshape1, narray.int32)
 
 print("\nBenchmarks for array shape = ".. helpers.to_string(bshape) ..", type = " .. tostring(btype) .. "\n")
 
 helpers.benchmark(function()  local blubb = narray.create(bshape, btype) end, bcount, "allocate array")
 helpers.benchmark(function()  ta:add(3) end, bcount, "add constant")
+helpers.benchmark(function()  ta1:add(3) end, bcount, "add constant - singleton")
 helpers.benchmark(function()  ta:add(tb) end, bcount, "add array")
+helpers.benchmark(function()  ta1:add(tb1) end, bcount, "add array - singleton")
 helpers.benchmark(function()  ta:sub(tb) end, bcount, "sub array")
 helpers.benchmark(function()  ta:sub(1) end, bcount, "sub constant")
 helpers.benchmark(function()  ta:eq(7) end, bcount, "eq(constant)")
