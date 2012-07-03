@@ -52,23 +52,23 @@ end
 -- some VLA ffi types for arrays
 Array.element_type = {}
 
-Array.int8 = ffi.typeof("char[?]");
-Array.element_type[Array.int8] = ffi.typeof("char")
+Array.int8 = ffi.typeof("int8_t[?]");
+Array.element_type[Array.int8] = ffi.typeof("int8_t")
 
-Array.int32 = ffi.typeof("int[?]");
-Array.element_type[Array.int32] = ffi.typeof("int")
+Array.int32 = ffi.typeof("int32_t[?]");
+Array.element_type[Array.int32] = ffi.typeof("int32_t")
 
-Array.int64 = ffi.typeof("long[?]");
-Array.element_type[Array.int64] = ffi.typeof("long")
+Array.int64 = ffi.typeof("int64_t[?]");
+Array.element_type[Array.int64] = ffi.typeof("int64_t")
 
-Array.uint8 = ffi.typeof("unsigned char[?]");
-Array.element_type[Array.uint8] = ffi.typeof("unsigned char")
+Array.uint8 = ffi.typeof("uint8_t[?]");
+Array.element_type[Array.uint8] = ffi.typeof("uint8_t")
 
-Array.uint32 = ffi.typeof("unsigned int[?]");
-Array.element_type[Array.uint32] = ffi.typeof("unsigned int")
+Array.uint32 = ffi.typeof("uint32_t[?]");
+Array.element_type[Array.uint32] = ffi.typeof("uint32_t")
 
-Array.uint64 = ffi.typeof("unsigned long[?]");
-Array.element_type[Array.uint64] = ffi.typeof("unsigned long")
+Array.uint64 = ffi.typeof("uint64_t[?]");
+Array.element_type[Array.uint64] = ffi.typeof("uint64_t")
 
 Array.float32 = ffi.typeof("float[?]");
 Array.element_type[Array.float32] = ffi.typeof("float")
@@ -152,6 +152,7 @@ function Array.fromData(ptr, dtype, shape, strides, source)
   array.memory = tonumber(ffi.cast("int", array.data))  
   array.dtype = dtype
   array.element_type = Array.element_type[dtype]
+  array.str_dtype = tostring(array.element_type)
   
   if shape[0] == nil then
     array.ndim = #shape
@@ -1103,12 +1104,12 @@ end
 
 -- pointer types
 local cpointer = {}
-cpointer.int8 = ffi.typeof("char*");
-cpointer.int32 = ffi.typeof("int*");
-cpointer.int64 = ffi.typeof("long*");
-cpointer.uint8 = ffi.typeof("unsigned char*");
-cpointer.uint32 = ffi.typeof("unsigned int*");
-cpointer.uint64 = ffi.typeof("unsigned long*");
+cpointer.int8 = ffi.typeof("int8_t*");
+cpointer.int32 = ffi.typeof("int32_t*");
+cpointer.int64 = ffi.typeof("int64_t*");
+cpointer.uint8 = ffi.typeof("uint8_t*");
+cpointer.uint32 = ffi.typeof("uint32_t*");
+cpointer.uint64 = ffi.typeof("uint64_t*");
 cpointer.float32 = ffi.typeof("float*");
 cpointer.float64 = ffi.typeof("double*");
 
