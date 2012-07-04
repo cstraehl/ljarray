@@ -9,6 +9,164 @@ local helpers = require("helpers")
 local operator = helpers.operator
 local isnarray = helpers.isnarray
 
+
+function Array.coordinates(self)
+-- array iterator that yields a coordinate which is a zero-based table
+  local pos = helpers.binmap(operator.sub, self.shape, self.shape)
+  local ndim = self.ndim
+  local d = 0
+
+  -- performance optimization for singleton dimensions
+  local singletons = 0
+  for i = ndim-1,0,-1 do
+    if self.shape[i] == 1 then
+      singletons = singletons + 1
+    else
+      break
+    end
+  end
+  ndim = ndim - singletons
+  d = ndim - 1
+  pos[d] = -1
+  local dim_count = self.shape[ndim-1]
+
+  return function()
+    -- print("pos: ", helpers.to_string(pos), d)
+    if dim_count == 0 then
+      dim_count = self.shape[ndim-1]
+      pos[d] = -1
+      d = d - 1
+      -- hadle 1-dimensional case
+      if d < 0 then
+        return nil
+      end
+      pos[d] = pos[d] + 1
+      while pos[d] >= self.shape[d] do
+        if pos[0] == self.shape[0] then
+          return nil
+        end
+        pos[d] = 0
+        d = d - 1
+        pos[d] = pos[d] + 1
+      end
+      d = ndim - 1
+    end
+    dim_count = dim_count - 1
+    pos[d] = pos[d] + 1
+    return pos
+  end
+end
+
+
+
+function Array.values(self)
+-- array iterator that yields the array value at each coordinate
+--
+  local pos = helpers.binmap(operator.sub, self.shape, self.shape)
+  local ndim = self.ndim
+  local d = 0
+  local offset = 0
+  local offseta = 0
+
+  -- performance optimization for singleton dimensions
+  local singletons = 0
+  for i = ndim-1,0,-1 do
+    if self.shape[i] == 1 then
+      singletons = singletons + 1
+    else
+      break
+    end
+  end
+  ndim = ndim - singletons
+  d = ndim - 1
+  pos[d] = -1
+  local stride = self.strides[d]
+  local stop = (self.shape[d]-1 )*stride
+
+  return function()
+    -- print("pos: ", helpers.to_string(pos), d)
+    if offset >= stop then
+      offset = -stride
+      pos[d] = -1
+      d = d - 1
+      pos[d] = pos[d] + 1
+      offseta = offseta + self.strides[d]
+      while pos[d] >= self.shape[d] do
+        if pos[0] == self.shape[0] then
+          return nil
+        end
+        pos[d] = 0
+        offseta = offseta - (self.shape[d])*self.strides[d]
+        d = d - 1
+        -- hadle 1-dimensional case
+        if d < 0 then
+          return nil
+        end
+        pos[d] = pos[d] + 1
+        offseta = offseta + self.strides[d]
+      end
+      d = ndim - 1
+    end
+    pos[d] = pos[d] + 1
+    offset = offset + stride
+    return self.data[offseta + offset]
+  end
+end
+
+function Array.pairs(self)
+-- array iterator that yields the coordinate as 
+-- a zero based table and the array value at each coordinate
+--
+  local pos = helpers.binmap(operator.sub, self.shape, self.shape)
+  local ndim = self.ndim
+  local d = 0
+  local offset = 0
+  local offseta = 0
+
+  -- performance optimization for singleton dimensions
+  local singletons = 0
+  for i = ndim-1,0,-1 do
+    if self.shape[i] == 1 then
+      singletons = singletons + 1
+    else
+      break
+    end
+  end
+  ndim = ndim - singletons
+  d = ndim - 1
+  local stride = self.strides[d]
+  local stop = (self.shape[d]-1 )*stride
+
+  return function()
+    -- print("pos: ", helpers.to_string(pos), d)
+    if offset >= stop then
+      offset = -stride
+      pos[d] = -1
+      d = d - 1
+      pos[d] = pos[d] + 1
+      offseta = offseta + self.strides[d]
+      while pos[d] >= self.shape[d] do
+        if pos[0] == self.shape[0] then
+          return nil, nil
+        end
+        pos[d] = 0
+        offseta = offseta - (self.shape[d])*self.strides[d]
+        d = d - 1
+        -- hadle 1-dimensional case
+        if d < 0 then
+          return nil
+        end
+        pos[d] = pos[d] + 1
+        offseta = offseta + self.strides[d]
+      end
+      d = ndim - 1
+    end
+    pos[d] = pos[d] + 1
+    offset = offset + stride
+    return pos, self.data[offseta + offset]
+  end
+end
+
 function Array.mapInplace(self,f, call_with_position)
 -- iterates over an array and calls a function for each value
 --
@@ -57,6 +215,10 @@ function Array.mapInplace(self,f, call_with_position)
       end
       pos[d] = 0
       d = d - 1
+      -- hadle 1-dimensional case
+      if d < 0 then
+        break
+      end
       pos[d] = pos[d] + 1
       offseta = offseta + self.strides[d]
       while (pos[d] >= self.shape[d]) and (pos[0] ~= self.shape[0]) do
@@ -70,145 +232,6 @@ function Array.mapInplace(self,f, call_with_position)
     end
 end
 
-function Array.coordinates(self)
-  local pos = helpers.binmap(operator.sub, self.shape, self.shape)
-  local ndim = self.ndim
-  local d = 0
-  local offset = 0
-  local offseta = 0
-
-  -- performance optimization for singleton dimensions
-  local singletons = 0
-  for i = ndim-1,0,-1 do
-    if self.shape[i] == 1 then
-      singletons = singletons + 1
-    else
-      break
-    end
-  end
-  ndim = ndim - singletons
-  d = ndim - 1
-  pos[d] = -1
-  local stride = self.strides[d]
-  local stop = (self.shape[d]-1 )*stride
-
-  return function()
-    -- print("pos: ", helpers.to_string(pos), d)
-    if offset >= stop then
-      offset = -stride
-      pos[d] = -1
-      d = d - 1
-      pos[d] = pos[d] + 1
-      while pos[d] >= self.shape[d] do
-        if pos[0] == self.shape[0] then
-          return nil
-        end
-        pos[d] = 0
-        d = d - 1
-        pos[d] = pos[d] + 1
-      end
-      d = ndim - 1
-    end
-    pos[d] = pos[d] + 1
-    offset = offset + stride
-    return pos
-  end
-end
-
-function Array.values(self)
-  local pos = helpers.binmap(operator.sub, self.shape, self.shape)
-  local ndim = self.ndim
-  local d = 0
-  local offset = 0
-  local offseta = 0
-
-  -- performance optimization for singleton dimensions
-  local singletons = 0
-  for i = ndim-1,0,-1 do
-    if self.shape[i] == 1 then
-      singletons = singletons + 1
-    else
-      break
-    end
-  end
-  ndim = ndim - singletons
-  d = ndim - 1
-  pos[d] = -1
-  local stride = self.strides[d]
-  local stop = (self.shape[d]-1 )*stride
-
-  return function()
-    -- print("pos: ", helpers.to_string(pos), d)
-    if offset >= stop then
-      offset = -stride
-      pos[d] = -1
-      d = d - 1
-      pos[d] = pos[d] + 1
-      offseta = offseta + self.strides[d]
-      while pos[d] >= self.shape[d] do
-        if pos[0] == self.shape[0] then
-          return nil
-        end
-        pos[d] = 0
-        offseta = offseta - (self.shape[d])*self.strides[d]
-        d = d - 1
-        pos[d] = pos[d] + 1
-        offseta = offseta + self.strides[d]
-      end
-      d = ndim - 1
-    end
-    pos[d] = pos[d] + 1
-    offset = offset + stride
-    return self.data[offseta + offset]
-  end
-end
-
-function Array.pairs(self)
-  local pos = helpers.binmap(operator.sub, self.shape, self.shape)
-  local ndim = self.ndim
-  local d = 0
-  local offset = 0
-  local offseta = 0
-
-  -- performance optimization for singleton dimensions
-  local singletons = 0
-  for i = ndim-1,0,-1 do
-    if self.shape[i] == 1 then
-      singletons = singletons + 1
-    else
-      break
-    end
-  end
-  ndim = ndim - singletons
-  d = ndim - 1
-  local stride = self.strides[d]
-  local stop = (self.shape[d]-1 )*stride
-
-  return function()
-    -- print("pos: ", helpers.to_string(pos), d)
-    if offset >= stop then
-      offset = -stride
-      pos[d] = -1
-      d = d - 1
-      pos[d] = pos[d] + 1
-      offseta = offseta + self.strides[d]
-      while pos[d] >= self.shape[d] do
-        if pos[0] == self.shape[0] then
-          return nil, nil
-        end
-        pos[d] = 0
-        offseta = offseta - (self.shape[d])*self.strides[d]
-        d = d - 1
-        pos[d] = pos[d] + 1
-        offseta = offseta + self.strides[d]
-      end
-      d = ndim - 1
-    end
-    pos[d] = pos[d] + 1
-    offset = offset + stride
-    return pos, self.data[offseta + offset]
-  end
-end
 
 
 function Array.mapBinaryInplace(self,other,f, call_with_position)
@@ -270,6 +293,10 @@ function Array.mapBinaryInplace(self,other,f, call_with_position)
     end
     pos[d] = 0
     d = d - 1
+    -- hadle 1-dimensional case
+    if d < 0 then
+      break
+    end
     pos[d] = pos[d] + 1
     offset_a = offset_a + self.strides[d]
     offset_b = offset_b + other.strides[d]
@@ -354,6 +381,10 @@ function Array.mapTenaryInplace(self,other_b, other_c,f, call_with_position)
     end
     pos[d] = 0
     d = d - 1
+    -- hadle 1-dimensional case
+    if d < 0 then
+      break
+    end
     pos[d] = pos[d] + 1
     offset_a = offset_a + self.strides[d]
     offset_b = offset_b + other_b.strides[d]

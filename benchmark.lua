@@ -19,7 +19,7 @@ helpers.benchmark(function()
 
   helpers.benchmark(function()  local blubb = narray.create(bshape, btype) end, bcount, "allocate array")
   helpers.benchmark(function()  ta:add(3) end, bcount, "add constant")
-  helpers.benchmark(function()  for pos in ta:coordinates() do end end, bcount, "coordinates (iterator)")
+  helpers.benchmark(function()  for pos in ta:coordinates() do  end end, bcount, "coordinates (iterator)")
   helpers.benchmark(function()  for val in ta:values() do end end, bcount, "values (iterator)")
   helpers.benchmark(function()  for pos, val in ta:pairs() do end end, bcount, "pairs (iterator)")
   helpers.benchmark(function()  ta1:add(3) end, bcount, "add constant - singleton")

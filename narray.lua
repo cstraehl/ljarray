@@ -28,6 +28,11 @@
 Array = {}
 Array.__index = Array
 
+-- extend package.path with path of this .lua file:
+local filepath = debug.getinfo(1).source:match("@(.*)$") 
+local dir = string.gsub(filepath, '/[^/]+$', '') .. "/"
+package.path = dir .. "/?.lua;" .. package.path
+
 local math = require("math") 
 local ffi = require("ffi")
 local bitop = require("bit")
@@ -38,10 +43,6 @@ local operator = helpers.operator
 local _helpers_forbid_globals_backup = helpers.__FORBID_GLOBALS
 helpers.__FORBID_GLOBALS = true
 
--- extend package.path with path of this .lua file:
-local filepath = debug.getinfo(1).source:match("@(.*)$") 
-local dir = string.gsub(filepath, '/[^/]+$', '') .. "/"
-package.path = dir .. "/?.lua;" .. package.path
 
 -- load additional functionality
 require("narray_base")
@@ -346,11 +347,11 @@ function Array.get4(self,i,j,k,l)
 end
 
 function Array.getPos1(self, pos)
-  return self:get3(pos[0])
+  return self:get1(pos[0])
 end
 
 function Array.getPos2(self, pos)
-  return self:get3(pos[0],pos[1])
+  return self:get2(pos[0],pos[1])
 end
 
 function Array.getPos3(self, pos)
@@ -358,7 +359,7 @@ function Array.getPos3(self, pos)
 end
 
 function Array.getPos4(self, pos)
-  return self:get3(pos[0],pos[1],pos[2], pos[3])
+  return self:get4(pos[0],pos[1],pos[2], pos[3])
 end
 
 function Array.getPosN(self,pos)
@@ -391,15 +392,15 @@ function Array.setPos1(self, pos, val)
 end
 
 function Array.setPos2(self, pos, val)
-  self:set1(pos[0],pos[1],val)
+  self:set2(pos[0],pos[1],val)
 end
 
 function Array.setPos3(self, pos, val)
-  self:set1(pos[0],pos[1],pos[2],val)
+  self:set3(pos[0],pos[1],pos[2],val)
 end
 
 function Array.setPos4(self, pos, val)
-  self:set1(pos[0],pos[1],pos[2],pos[3],val)
+  self:set4(pos[0],pos[1],pos[2],pos[3],val)
 end
 
 function Array.setPosN(self, pos, val)

@@ -26,6 +26,12 @@ tb = ta:copy()
 assert(tb.order == "c")
 assert(ta:eq(tb):all())
 
+ta:assign(2)
+for pos in ta:coordinates() do
+  ta:setPos(pos,0)
+end
+assert(ta:eq(0):all())
+
 -- test narray.where number, number
 ta = narray.create(test_shape, narray.int32)
 ta_1 = ta:bind(0,50,100)
