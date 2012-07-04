@@ -47,6 +47,7 @@ helpers.__FORBID_GLOBALS = true
 -- load additional functionality
 require("narray_base")
 require("narray_math")
+require("narray_sort")
 
 -- some VLA ffi types for arrays
 Array.element_type = {}
@@ -77,39 +78,19 @@ Array.element_type[Array.float64] = ffi.typeof("double")
 
 Array.pointer = ffi.typeof("void *");
 Array.element_type[Array.pointer] = ffi.typeof("void *")
+
+-- pointer types
+local cpointer = {}
+cpointer.int8 = ffi.typeof("int8_t*");
+cpointer.int32 = ffi.typeof("int32_t*");
+cpointer.int64 = ffi.typeof("int64_t*");
+cpointer.uint8 = ffi.typeof("uint8_t*");
+cpointer.uint32 = ffi.typeof("uint32_t*");
+cpointer.uint64 = ffi.typeof("uint64_t*");
+cpointer.float32 = ffi.typeof("float*");
+cpointer.float64 = ffi.typeof("double*");
+
  
--- helper method that specializes some critical functions depending
--- on the number of dimensions of the array
-function Array.fixMethodsDim(self)
-  self.ndim = self.ndim
-  if self.ndim == 1 then
-    self.get = Array.get1
-    self.getPos = Array.getPos1
-    self.set = Array.set1
-    self.setPos = Array.setPos1
-  elseif self.ndim == 2 then
-    self.get = Array.get2
-    self.getPos = Array.getPos2
-    self.set = Array.set2
-    self.setPos = Array.setPos2
-  elseif self.ndim == 3 then
-    self.get = Array.get3
-    self.getPos = Array.getPos3
-    self.set = Array.set3
-    self.setPos = Array.setPos3
-  elseif self.ndim == 4 then
-    self.get = Array.get4
-    self.getPos = Array.getPos4
-    self.set = Array.setN
-    self.setPos = Array.setPos4
-  else
-    -- TODO: these methods are SLOOOW!
-    self.get = self.getN
-    self.getPos = self.getPosN
-    self.set = Array.set1
-    self.setPos = Array.setPosN
-  end
-end
 
 -- create array from existing data pointer
 --
@@ -248,6 +229,48 @@ function Array.copy(self,order)
   return result
 end
 
+
+function Array.arange(start,stop,step,dtype)
+-- narray.arange([start], stop[, step], dtype=None)
+-- Return evenly spaced values within a given interval.
+-- 
+-- Values are generated within the half-open interval [start, stop)
+-- (in other words, the interval including start but excluding stop). 
+-- 
+-- When using a non-integer step, such as 0.1, the results will 
+-- often not be consistent. It is better to use linspace for these cases.
+  if stop == nil then
+    stop = start
+    start = 0
+    step = 1
+    dtype = Array.int32
+  elseif step == nil then
+    if type(step) == "number" then
+      start = start
+      stop = stop
+      step = step
+      dtype = Array.int32
+    else -- dtype was given
+      start = start
+      stop = stop
+      dtype = step
+      step = 1
+    end
+  elseif dtype == nil then
+    start = start
+    stop = stop
+    step = step
+    dtype = Array.int32
+  end
+  local array = Array.create({math.floor((stop-start) / step)},dtype) 
+  local i = 0
+  for v = start, stop-1,step do
+    array.data[i] = v
+    i = i + 1
+  end
+  return array
+end
+
 function Array.view(self,start, stop)
 -- construct a strided view to an subarray of self
 -- 
@@ -323,93 +346,21 @@ end
 
 
 
-
---
---
--- Dimensionality-specialized getter and setter functions
---
---
-
-function Array.get1(self,i)
-  return self.data[i*self.strides[0]] 
+function Array.fromNumpyArray(ndarray)
+-- construct narray from numpy.ndarray (as given by lupa a python<->lua bride)
+-- the numpy array and the narray share the same memory
+  local dtype = cpointer[tostring(ndarray.dtype)]
+  local data = ffi.cast(dtype,ndarray.ctypes.data)
+  local shape = {}
+  local strides = {}
+  local elem_size = ndarray.nbytes / ndarray.size
+  for i = 0,ndarray.ndim-1,1 do
+    shape[i] = ndarray.shape[i]
+    strides[i] = ndarray.strides[i] / elem_size
+  end
+  local array = Array.fromData(data, dtype, shape, strides, ndarray)
+  return array
 end
-
-function Array.get2(self,i,j)
-  return self.data[i*self.strides[0] + j*self.strides[1]] 
-end
-
-function Array.get3(self, i,j,k)
-  return self.data[i*self.strides[0] + j*self.strides[1] + k*self.strides[2]] 
-end
-
-function Array.get4(self,i,j,k,l)
-  return self.data[i*self.strides[0] + j*self.strides[1] + k*self.strides[2] + l*self.strides[3]] 
-end
-
-function Array.getPos1(self, pos)
-  return self:get1(pos[0])
-end
-
-function Array.getPos2(self, pos)
-  return self:get2(pos[0],pos[1])
-end
-
-function Array.getPos3(self, pos)
-  return self:get3(pos[0],pos[1],pos[2])
-end
-
-function Array.getPos4(self, pos)
-  return self:get4(pos[0],pos[1],pos[2], pos[3])
-end
-
-function Array.getPosN(self,pos)
-  -- TODO:implement
-  error("")
-end
-
-function Array.set1(self, i, val)
-  self.data[i*self.strides[0]] = val
-end
-
-function Array.set2(self, i,j, val)
-  self.data[i*self.strides[0] + j*self.strides[1]] = val
-end
-
-function Array.set3(self, i,j,k, val)
-  self.data[i*self.strides[0] + j*self.strides[1] + k*self.strides[2]] = val
-end
-
-function Array.set4(self, i,j,k,l, val)
-  self.data[i*self.strides[0] + j*self.strides[1] + k*self.strides[2] + l*self.strides[3]] = val
-end
-
-function Array.setN(self,val, ...)
-  self:setPosN(...,val)
-end
-
-function Array.setPos1(self, pos, val)
-  self:set1(pos[0],val)
-end
-
-function Array.setPos2(self, pos, val)
-  self:set2(pos[0],pos[1],val)
-end
-
-function Array.setPos3(self, pos, val)
-  self:set3(pos[0],pos[1],pos[2],val)
-end
-
-function Array.setPos4(self, pos, val)
-  self:set4(pos[0],pos[1],pos[2],pos[3],val)
-end
-
-function Array.setPosN(self, pos, val)
-  -- TODO: slooow
-  local offset = helpers.reduce(operator.add, helpers.binmap(operator.mul, pos, self.strides), 0)
-  self.data[offset] = val
-end
-
-
 
 
 local _print_element = function(x)
@@ -427,32 +378,6 @@ end
 Array.__tostring = function(self)
   local result = "\nArray" .. "(shape = " .. helpers.to_string(self.shape) .. ", stride = ".. helpers.to_string(self.strides) ..  ", dtype = ".. tostring(self.dtype) .. ")\n"
   return result
-end
-
-
--- pointer types
-local cpointer = {}
-cpointer.int8 = ffi.typeof("int8_t*");
-cpointer.int32 = ffi.typeof("int32_t*");
-cpointer.int64 = ffi.typeof("int64_t*");
-cpointer.uint8 = ffi.typeof("uint8_t*");
-cpointer.uint32 = ffi.typeof("uint32_t*");
-cpointer.uint64 = ffi.typeof("uint64_t*");
-cpointer.float32 = ffi.typeof("float*");
-cpointer.float64 = ffi.typeof("double*");
-
-function Array.fromNumpyArray(ndarray)
-  local dtype = cpointer[tostring(ndarray.dtype)]
-  local data = ffi.cast(dtype,ndarray.ctypes.data)
-  local shape = {}
-  local strides = {}
-  local elem_size = ndarray.nbytes / ndarray.size
-  for i = 0,ndarray.ndim-1,1 do
-    shape[i] = ndarray.shape[i]
-    strides[i] = ndarray.strides[i] / elem_size
-  end
-  local array = Array.fromData(data, dtype, shape, strides, ndarray)
-  return array
 end
 
 -- restore __FORBID_GLOBALS behaviour

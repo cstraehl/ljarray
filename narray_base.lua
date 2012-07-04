@@ -607,3 +607,121 @@ function Array.nonzero(self, order)
   self.mapInplace(self,_nonzero_update_indices, true)
   return _nonzero_result
 end
+
+--
+--
+-- Dimensionality-specialized getter and setter functions
+--
+--
+
+function Array.get1(self,i)
+  return self.data[i*self.strides[0]] 
+end
+
+function Array.get2(self,i,j)
+  return self.data[i*self.strides[0] + j*self.strides[1]] 
+end
+
+function Array.get3(self, i,j,k)
+  return self.data[i*self.strides[0] + j*self.strides[1] + k*self.strides[2]] 
+end
+
+function Array.get4(self,i,j,k,l)
+  return self.data[i*self.strides[0] + j*self.strides[1] + k*self.strides[2] + l*self.strides[3]] 
+end
+
+function Array.getPos1(self, pos)
+  return self:get1(pos[0])
+end
+
+function Array.getPos2(self, pos)
+  return self:get2(pos[0],pos[1])
+end
+
+function Array.getPos3(self, pos)
+  return self:get3(pos[0],pos[1],pos[2])
+end
+
+function Array.getPos4(self, pos)
+  return self:get4(pos[0],pos[1],pos[2], pos[3])
+end
+
+function Array.getPosN(self,pos)
+  -- TODO:implement
+  error("")
+end
+
+function Array.set1(self, i, val)
+  self.data[i*self.strides[0]] = val
+end
+
+function Array.set2(self, i,j, val)
+  self.data[i*self.strides[0] + j*self.strides[1]] = val
+end
+
+function Array.set3(self, i,j,k, val)
+  self.data[i*self.strides[0] + j*self.strides[1] + k*self.strides[2]] = val
+end
+
+function Array.set4(self, i,j,k,l, val)
+  self.data[i*self.strides[0] + j*self.strides[1] + k*self.strides[2] + l*self.strides[3]] = val
+end
+
+function Array.setN(self,val, ...)
+  self:setPosN(...,val)
+end
+
+function Array.setPos1(self, pos, val)
+  self:set1(pos[0],val)
+end
+
+function Array.setPos2(self, pos, val)
+  self:set2(pos[0],pos[1],val)
+end
+
+function Array.setPos3(self, pos, val)
+  self:set3(pos[0],pos[1],pos[2],val)
+end
+
+function Array.setPos4(self, pos, val)
+  self:set4(pos[0],pos[1],pos[2],pos[3],val)
+end
+
+function Array.setPosN(self, pos, val)
+  -- TODO: slooow
+  local offset = helpers.reduce(operator.add, helpers.binmap(operator.mul, pos, self.strides), 0)
+  self.data[offset] = val
+end
+
+function Array.fixMethodsDim(self)
+-- helper method that specializes some critical functions depending
+-- on the number of dimensions of the array
+  self.ndim = self.ndim
+  if self.ndim == 1 then
+    self.get = Array.get1
+    self.getPos = Array.getPos1
+    self.set = Array.set1
+    self.setPos = Array.setPos1
+  elseif self.ndim == 2 then
+    self.get = Array.get2
+    self.getPos = Array.getPos2
+    self.set = Array.set2
+    self.setPos = Array.setPos2
+  elseif self.ndim == 3 then
+    self.get = Array.get3
+    self.getPos = Array.getPos3
+    self.set = Array.set3
+    self.setPos = Array.setPos3
+  elseif self.ndim == 4 then
+    self.get = Array.get4
+    self.getPos = Array.getPos4
+    self.set = Array.setN
+    self.setPos = Array.setPos4
+  else
+    -- TODO: these methods are SLOOOW!
+    self.get = self.getN
+    self.getPos = self.getPosN
+    self.set = Array.set1
+    self.setPos = Array.setPosN
+  end
+end

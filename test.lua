@@ -129,3 +129,21 @@ local result = ta:lookup(lut)
 assert(result:get(3,3,3) == 1)
 result:set(3,3,3,0)
 assert(result:eq(0):all())
+
+
+-- test narray arange
+local t = narray.arange(7,11,2)
+local i = 0
+for v =  7,10,2 do
+  assert(t.data[i] == v)
+  i = i + 1
+end
+-- test narray arange, only stop
+local t = narray.arange(7)
+local i = 0
+for v = 0,6,1 do
+  assert(t.data[i] == v)
+  i = i + 1
+end
+
+
