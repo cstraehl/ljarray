@@ -147,3 +147,15 @@ for v = 0,6,1 do
 end
 
 
+-- test narray rand
+local t = narray.rand({10,20})
+assert(t.shape[0] == 10)
+assert(t.shape[1] == 20)
+
+-- test narray randint
+local t = narray.randint(17,333,{100,200})
+assert(t.shape[0] == 100)
+assert(t.shape[1] == 200)
+assert(t:ge(17):all())
+assert(t:lt(333):all())
+

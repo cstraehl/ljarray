@@ -229,6 +229,38 @@ function Array.copy(self,order)
   return result
 end
 
+function Array.rand(shape, dtype)
+-- Random values in a given shape.
+-- 
+-- Create an array of the given shape and propagate it with 
+-- random samples from a uniform distribution over [0, 1).
+  if dtype == nil then
+    dtype = Array.float32
+  end
+  local array = Array.create(shape, dtype)
+  for pos in array:coordinates() do
+    array:setPos(pos, math.random())
+  end
+  return array
+end
+
+
+function Array.randint(low,high,shape, dtype)
+-- Return random integers from low (inclusive) to high (exclusive).
+-- 
+-- Return random integers from the “discrete uniform” distribution in 
+-- the “half-open” interval [low, high). If high is None (the default),
+-- then results are from [0, low).
+  if dtype == nil then
+    dtype = Array.int32
+  end
+  local array = Array.create(shape, dtype)
+  for pos in array:coordinates() do
+    array:setPos(pos, math.floor(math.random()*(high-0.1 - low) +low))
+  end
+  return array
+end
+
 
 function Array.arange(start,stop,step,dtype)
 -- narray.arange([start], stop[, step], dtype=None)
