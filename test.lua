@@ -52,6 +52,7 @@ ta_1 = ta:bind(0,50,100)
 ta_2 = ta:bind(0,0,50)
 ta_1:assign(0)
 ta_2:assign(1)
+assert(ta.shape ~= nil)
 tb = narray.where(ta, tc, 200)
 tb_2 = tb:bind(0,0,50)
 tc_2 = tc:bind(0,0,50)
@@ -159,3 +160,31 @@ assert(t.shape[1] == 200)
 assert(t:ge(17):all())
 assert(t:lt(333):all())
 
+
+-- test narray sort
+local t = narray.randint(4,10000,{1000})
+t:sort()
+for i=0,t.shape[0]-2 do
+  assert(t.data[i] <= t.data[i+1], "sorting failed at index " .. i .. ":" .. t.data[i] .." is not <= " .. t.data[i+1])
+end
+
+
+-- test narray sort
+local t = narray.randint(4,10000,{10,100,10})
+t:sort()
+local v = t:view({0,0,0},{10,1,10})
+for pos in v:coordinates() do
+  for i = 0, t.shape[1]-2 do
+    assert(t:get(pos[0],i,pos[2]) <= t:get(pos[0],i,pos[2]), "sorting failed at position " .. helpers.to_string(pos) .. ":" .. t:get(pos[0],i,pos[2]) .." is not <= " .. t:get(pos[0],i+1,pos[2]))
+  end
+end
+
+-- test narray argsort
+local t = narray.randint(4,10000,{100})
+t.data[77] = 99999 -- watermark t before argsort
+local coordinates = t:argsort()
+assert(t.data[77] == 99999) -- test t is still unssorted
+t = t:getCoordinates(coordinates)
+for i=0,t.shape[0]-2 do
+  assert(t.data[i] <= t.data[i+1], "sorting failed at index " .. i .. ":" .. t.data[i] .." is not <= " .. t.data[i+1])
+end

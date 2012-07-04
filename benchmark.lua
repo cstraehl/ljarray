@@ -39,6 +39,12 @@ helpers.benchmark(function()
   helpers.benchmark(function()  ta:assign(tb) end, bcount, "assign array")
   helpers.benchmark(function()  ta:nonzero() end, bcount, "nonzero")
 
+  math.randomseed(31415927)
+  local rand = narray.randint(0,100000,{1000000})
+  helpers.benchmark(function()  rand:sort() end, 1, "sort 1000000 integers")
+  local rand = narray.randint(0,100000,{1000000})
+  helpers.benchmark(function()  rand:argsort() end, 1, "argsort 1000000 integers")
+
   ta:assign(3)
   local lut = narray.create({10}, narray.uint8)
   lut:set(0,0)

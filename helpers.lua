@@ -27,6 +27,14 @@ isnarray = function(a)
   end
 end
 
+zeros = function(length)
+  local temp = {}
+  for i = 0,length-1,1 do
+    temp[i] = 0
+  end
+  return temp
+end
+
 
 -- benchmarking function
 benchmark = function(f, count, name)

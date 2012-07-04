@@ -277,6 +277,11 @@ function Array.arange(start,stop,step,dtype)
     step = 1
     dtype = Array.int32
   elseif step == nil then
+    start = start
+    stop = stop
+    step = 1
+    dtype = Array.int32
+  elseif dtype == nil then
     if type(step) == "number" then
       start = start
       stop = stop
@@ -288,7 +293,6 @@ function Array.arange(start,stop,step,dtype)
       dtype = step
       step = 1
     end
-  elseif dtype == nil then
     start = start
     stop = stop
     step = step
@@ -309,8 +313,10 @@ function Array.view(self,start, stop)
 -- required parameters
 --  start: start coordinates of view, table of length shape
 --  stop : stop coordinates of view, table of length shape
-  assert(#start == #stop)
-  assert(#start == self.ndim)
+  start = helpers.zerobased(start)
+  stop = helpers.zerobased(stop)
+  assert(#start == #stop, "dimension of start and stop differ: " ..#start .." vs ".. #stop)
+  assert(#start + 1 == self.ndim)
 
   if start[0] == nil then
     newstart = {}
@@ -352,27 +358,34 @@ function Array.bind(self,dimension, start, stop)
 --
 -- if no stop index is given the ndim of the returned
 -- view is self.ndim-1
-  assert(self.shape[dimension] >= stop)
+--
   assert(self.shape[dimension] >= start)
+  if stop then
+    assert(self.shape[dimension] >= stop)
   assert(start<=stop)
+  end
   local data = self.data + self.strides[dimension]*(start)
   local shape = {}
   local strides = {}
-  if not stop or stop == start then
+  if stop and stop ~= start then
     for i=0,dimension-1,1 do
-      array.strides[i] = self.strides[i]
-      array.shape[i] = self.shape[i]
+      strides[i] = self.strides[i]
+      shape[i] = self.shape[i]
     end
     for i=dimension,self.ndim-1,1 do
-      array.strides[i-1] = self.strides[i]
-      array.shape[i-1] = self.shape[i]
+      strides[i-1] = self.strides[i]
+      shape[i-1] = self.shape[i]
     end
   else
-    shape = helpers.copy(self.shape)
-    shape[dimension] = stop - start
-    strides = self.strides
+    for i=0,dimension-1,1 do
+      strides[i] = self.strides[i]
+      shape[i] = self.shape[i]
+    end
+    for i=dimension+1,self.ndim-1,1 do
+      strides[i-1] = self.strides[i]
+      shape[i-1] = self.shape[i]
+    end
   end
-
   return Array.fromData(data,self.dtype, shape, strides, self)
 end
 

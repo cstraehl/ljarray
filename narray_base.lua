@@ -25,7 +25,9 @@ function Array.coordinates(self)
       break
     end
   end
-  ndim = ndim - singletons
+  if ndim > 1 then
+    ndim = ndim - singletons
+  end
   d = ndim - 1
   pos[d] = -1
   local dim_count = self.shape[ndim-1]
@@ -77,7 +79,9 @@ function Array.values(self)
       break
     end
   end
-  ndim = ndim - singletons
+  if ndim > 1 then
+    ndim = ndim - singletons
+  end
   d = ndim - 1
   pos[d] = -1
   local stride = self.strides[d]
@@ -132,7 +136,9 @@ function Array.pairs(self)
       break
     end
   end
-  ndim = ndim - singletons
+  if ndim > 1 then
+    ndim = ndim - singletons
+  end
   d = ndim - 1
   local stride = self.strides[d]
   local stop = (self.shape[d]-1 )*stride
@@ -180,7 +186,9 @@ function Array.mapInplace(self,f, call_with_position)
 -- optional
 --  call_with_position : if true, the funciton f will be
 --            called with the currents array element position
-    local pos = helpers.binmap(operator.sub, self.shape, self.shape)
+--
+    assert(self.ndim > 0)
+    local pos = helpers.zeros(self.ndim)
     local ndim = self.ndim
     local d = 0
     local offseta = 0
@@ -194,7 +202,9 @@ function Array.mapInplace(self,f, call_with_position)
         break
       end
     end
-    ndim = ndim - singletons
+    if ndim > 1 then
+      ndim = ndim - singletons
+    end
 
     while pos[0] < self.shape[0] do
      --print("pos: ", helpers.to_string(pos), d)
@@ -267,7 +277,9 @@ function Array.mapBinaryInplace(self,other,f, call_with_position)
       break
     end
   end
-  ndim = ndim - singletons
+  if ndim > 1 then
+    ndim = ndim - singletons
+  end
 
   while pos[0] < self.shape[0] do
     d = ndim - 1
@@ -351,7 +363,9 @@ function Array.mapTenaryInplace(self,other_b, other_c,f, call_with_position)
       break
     end
   end
-  ndim = ndim - singletons
+  if ndim > 1 then
+    ndim = ndim - singletons
+  end
 
   while pos[0] < self.shape[0] do
     d = ndim - 1
@@ -510,18 +524,24 @@ function Array.where(self, boolarray, a, b)
 --  b  : a single array element of an array of shape self.shape
 --
 
-  if not b or type(b) == "string" then -- assume static call
+  if b == nil or type(b) == "string" then -- assume static call
     local order = b
     b = a
     a = boolarray
+    assert(self.shape ~= nil)
     boolarray = self
     local dtype = Array.float32
+    local shape = nil
     if isnarray(a) then
       dtype = a.dtype
+      shape = a.shape
     elseif isnarray(b) then
       dtype = b.dtype
+      shape = b.shape
+    else
+      shape = boolarray.shape
     end
-    self = Array.create(boolarray.shape, dtype, order)
+    self = Array.create(shape, dtype, order)
   end
 
   local nz = boolarray:nonzero()
@@ -593,6 +613,7 @@ function Array.nonzero(self, order)
   _nonzero_ndim = self.ndim
 
   -- determine number of nonzero elements
+  assert(self.ndim > 0)
   self:mapInplace(_nonzero_count_nz)
 
   -- allocate arrays for dimension indices
