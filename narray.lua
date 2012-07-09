@@ -49,6 +49,11 @@ require("narray_base")
 require("narray_math")
 require("narray_sort")
 
+ffi.cdef[[
+void *malloc(size_t size);
+void free(void *ptr);
+]]
+
 -- some VLA ffi types for arrays
 Array.element_type = {}
 
@@ -82,15 +87,38 @@ Array.element_type[Array.pointer] = ffi.typeof("void *")
 -- pointer types
 local cpointer = {}
 cpointer.int8 = ffi.typeof("int8_t*");
-cpointer.int32 = ffi.typeof("int32_t*");
-cpointer.int64 = ffi.typeof("int64_t*");
-cpointer.uint8 = ffi.typeof("uint8_t*");
-cpointer.uint32 = ffi.typeof("uint32_t*");
-cpointer.uint64 = ffi.typeof("uint64_t*");
-cpointer.float32 = ffi.typeof("float*");
-cpointer.float64 = ffi.typeof("double*");
+cpointer[Array.int8] = cpointer.int8
 
- 
+cpointer.int32 = ffi.typeof("int32_t*");
+cpointer[Array.int32] = cpointer.int32
+
+cpointer.int64 = ffi.typeof("int64_t*");
+cpointer[Array.int64] = cpointer.int64
+
+cpointer.uint8 = ffi.typeof("uint8_t*");
+cpointer[Array.uint8] = cpointer.uint8
+
+cpointer.uint32 = ffi.typeof("uint32_t*");
+cpointer[Array.uint32] = cpointer.uint32
+
+cpointer.uint64 = ffi.typeof("uint64_t*");
+cpointer[Array.uint64] = cpointer.uint64
+
+cpointer.float32 = ffi.typeof("float*");
+cpointer[Array.float32] = cpointer.float32
+
+cpointer.float64 = ffi.typeof("double*");
+cpointer[Array.float64] = cpointer.float64
+
+Array.element_type_size = {}
+for k,v in pairs(Array.element_type) do
+  Array.element_type_size[v] = ffi.sizeof(v)
+end
+
+-- for k,v in pairs(cpointer) do
+--   print(v)
+--   ffi.gc(v,ffi.C.free)
+-- end
 
 -- create array from existing data pointer
 --
@@ -114,7 +142,7 @@ function Array.fromData(ptr, dtype, shape, strides, source)
   array.memory = tonumber(ffi.cast("int", array.data))  
   array.dtype = dtype
   array.element_type = Array.element_type[dtype]
-  array.str_dtype = tostring(array.element_type)
+  --array.str_dtype = tostring(array.element_type)
   
   if shape[0] == nil then
     array.ndim = #shape
@@ -129,7 +157,7 @@ function Array.fromData(ptr, dtype, shape, strides, source)
   end
 
   if type(strides) == "table" then
-    if strides[0] == nil then
+     if strides[0] == nil then
       local newstrides = {}
       -- 1 based strides
       for i = 1, array.ndim, 1 do
@@ -168,7 +196,7 @@ function Array.fromData(ptr, dtype, shape, strides, source)
   end
   array.shape = shape
   if not source then
-    array.source = array    
+    array.source = nil
   else
     array.source = source
   end
@@ -183,6 +211,7 @@ function Array.fromData(ptr, dtype, shape, strides, source)
 
   return array
 end
+
 
 
 function Array.create(shape, dtype, order)
@@ -200,10 +229,21 @@ function Array.create(shape, dtype, order)
    -- the {0} is a trick to prevent zero
    -- filling. 
    -- BEWARE: array is uninitialized 
+   
+   assert(type(shape) == "table", "narray.create: shape must be of type table")
    local size = helpers.reduce(operator.mul, helpers.zerobased(shape), 1)
+   if dtype == nil then
+     dtype = Array.float32
+   end                      
+   local etype = Array.element_type[dtype]
 
    -- NOTE: the {0} initializer prevents the VLA array from being initialized
-   local data = dtype(size, {0}) 
+   -- local data = dtype(size, {etype()}) -- TODO: luajit cannot compile this allocation -> leads to slowdowns
+   local data = ffi.C.malloc(size * Array.element_type_size[etype])
+   data = ffi.cast(cpointer[dtype], data)
+   -- TODO: above allocation is without ffi.gc !!!!
+   -- TODO: figure out a way to manage memory without ffi.gc, since
+   -- ffi.gc cannot be compiled either
    return Array.fromData(data,dtype,shape,order)
 end
 
@@ -298,7 +338,9 @@ function Array.arange(start,stop,step,dtype)
     step = step
     dtype = Array.int32
   end
-  local array = Array.create({math.floor((stop-start) / step)},dtype) 
+  local tshape = {}
+  tshape[0] = math.floor((stop-start) / step)
+  local array = Array.create(tshape,dtype) 
   local i = 0
   for v = start, stop-1,step do
     array.data[i] = v
@@ -315,7 +357,7 @@ function Array.view(self,start, stop)
 --  stop : stop coordinates of view, table of length shape
   start = helpers.zerobased(start)
   stop = helpers.zerobased(stop)
-  assert(#start == #stop, "dimension of start and stop differ: " ..#start .." vs ".. #stop)
+  assert(#start == #stop, "dimension of start and stop differ ") -- ..#start .." vs ".. #stop)
   assert(#start + 1 == self.ndim)
 
   if start[0] == nil then
@@ -359,7 +401,10 @@ function Array.bind(self,dimension, start, stop)
 -- if no stop index is given the ndim of the returned
 -- view is self.ndim-1
 --
-  assert(self.shape[dimension] >= start)
+  assert(dimension ~= nil, "narray.bind: dimension is nil")
+  assert(start ~= nil, "narray.bind: start index is nil")
+  assert(dimension < self.ndim, "narray.bind: dimension larger then array dimension.")
+  assert(self.shape[dimension] >= start, "narray.bind: start index larger then shape")
   if stop then
     assert(self.shape[dimension] >= stop)
   assert(start<=stop)
@@ -373,9 +418,10 @@ function Array.bind(self,dimension, start, stop)
       shape[i] = self.shape[i]
     end
     for i=dimension,self.ndim-1,1 do
-      strides[i-1] = self.strides[i]
-      shape[i-1] = self.shape[i]
+      strides[i] = self.strides[i]
+      shape[i] = self.shape[i]
     end
+    shape[dimension] = stop - start
   else
     for i=0,dimension-1,1 do
       strides[i] = self.strides[i]
@@ -415,13 +461,13 @@ end
 
 function Array.print(self)
   self:mapInplace( _print_element)
-  io.write("\nArray", tostring(self), "(shape = ", helpers.to_string(self.shape))
+  io.write("Array", tostring(self), "(shape = ", helpers.to_string(self.shape))
   io.write(", stride = ", helpers.to_string(self.strides))
-  io.write(", dtype = ", tostring(self.dtype), ")\n")
+  io.write(", dtype = ", tostring(self.dtype), ")")
 end
 
 Array.__tostring = function(self)
-  local result = "\nArray" .. "(shape = " .. helpers.to_string(self.shape) .. ", stride = ".. helpers.to_string(self.strides) ..  ", dtype = ".. tostring(self.dtype) .. ")\n"
+  local result = "Array" .. "(shape = " .. helpers.to_string(self.shape) .. ", stride = ".. helpers.to_string(self.strides) ..  ", dtype = ".. tostring(self.dtype) .. ")"
   return result
 end
 

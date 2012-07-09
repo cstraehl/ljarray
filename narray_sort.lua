@@ -10,42 +10,79 @@ local operator = helpers.operator
 local isnarray = helpers.isnarray
 
 
--- insertion sort helper - used by quicksort for small ranges
-local function inssort(v, low, high, comp, swap)
+-- insertion sort helper - used by quicksort_impl for small ranges
+local function inssort(v, low, high, comp, swap, swaparg)
   for i = low+1, high do
     local elt = v.data[i]
     if comp(elt,v.data[low]) then
-      for j = i-1, low, -1 do v.data[j+1] = v.data[j]; swap(j,j+1); end
+      for j = i-1, low, -1 do v.data[j+1] = v.data[j]; swap(swaparg,j,j+1); end
       v.data[low] = elt
     else
       local j = i-1
-      while comp(elt,v.data[j]) do v.data[j+1] = v.data[j]; swap(j,j+1); j = j - 1 end
+      while comp(elt,v.data[j]) do v.data[j+1] = v.data[j]; swap(swaparg,j,j+1); j = j - 1 end
       v.data[j+1] = elt
     end
   end
   return nil, high, low
 end
 
-local _default_comp = function(a,b)
-  return a <= b
+local function swap3(v,ai, bi, ci, comp)
+  local a, b, c = v.data[ai], v.data[bi], v.data[ci]
+  if comp(a,b) then
+    if comp(b,c) then
+      return bi
+    elseif comp(a,c) then
+      return ci
+    else
+      return ai
+    end
+  elseif comp(a,c) then
+    return ai
+  elseif comp(b,c) then
+    return ci
+  else
+    return bi
+  end
 end
 
+
+-- default comparison function
+local _default_comp = function(a,b)
+  return a < b
+end
+
+-- default empty swap function
 local _default_swap = function(i1,i2)
 end
 
---in-place quicksort
-local quicksort_impl
-quicksort_impl = function(t, comp,swap,start, endi)
-  if endi-start < 20 then
-    inssort(t,start,endi, comp, swap)
-    return t
-  end
+
+ --in-place quicksort
+ local quicksort_impl
+ quicksort_impl = function(t, comp,swap,start, endi, swaparg)
+   if endi-start < 50 then
+     inssort(t,start,endi, comp, swap, swaparg)
+     return t
+   end
+
+  -- -- move median of first, middle and last element to front
+  -- local mid = math.floor((start + endi) / 2)
+  -- local mid_i = swap3(t, start, mid, endi-1, comp)
+  -- swap(swaparg, start, mid_i)
+  -- t.data[start], t.data[mid_i]= t.data[mid_i], t.data[start]
+
+  -- random pivot choice
+  local pivot = math.floor(math.random()*(endi-start)+start)
+  swap(swaparg, start, pivot)
+  local temp = t.data[start]
+  t.data[start] = t.data[pivot]
+  t.data[pivot] = temp
+
   --partition w.r.t. first element
   if not comp(t.data[start],t.data[start+1]) then
     local temp = t.data[start+1]
     t.data[start+1] = t.data[start]
     t.data[start] = temp
-    swap(start,start+1)
+    swap(swaparg,start,start+1)
   end
   local pivot = start
   for i = start + 2, endi do
@@ -54,32 +91,35 @@ quicksort_impl = function(t, comp,swap,start, endi)
       t.data[pivot + 1] = t.data[pivot]
       t.data[pivot] = t.data[i]
       t.data[i] = temp
-      swap(pivot,pivot+1)
-      swap(pivot,i)
+      swap(swaparg,pivot,pivot+1)
+      swap(swaparg,pivot,i)
       pivot = pivot + 1
     end
   end
+
   -- recurse using tail call optimization
   if pivot - start < endi - pivot then
-    quicksort_impl(t,comp,swap,start, pivot - 1)
-    return quicksort_impl(t,comp,swap,pivot + 1, endi)
+    quicksort_impl(t,comp,swap,start, pivot - 1, swaparg)
+    return quicksort_impl(t,comp,swap,pivot + 1, endi, swaparg)
   else
-    quicksort_impl(t,comp,swap,pivot + 1, endi)
-    return quicksort_impl(t,comp,swap,start, pivot - 1)
+    quicksort_impl(t,comp,swap,pivot + 1, endi, swaparg)
+    return quicksort_impl(t,comp,swap,start, pivot - 1, swaparg)
   end
 end
 
-local quicksort = function(t,comp,swap)
-  assert(t.ndim == 1, "quicksort only works for dense 1-d arrays - ndim: " .. t.ndim)
-  assert(t.strides[0] == 1, "quicksort only works for dense 1-d arrays - strides[0]: " .. t.strides[0])
+-- quicksort helper
+local quicksort = function(t,comp,swap,swaparg)
+  assert(t.ndim == 1) --, "quicksort only works for dense 1-d arrays - ndim: " .. t.ndim)
+  assert(t.strides[0] == 1) --, "quicksort only works for dense 1-d arrays - strides[0]: " .. t.strides[0])
 
   swap = swap or _default_swap
   comp = comp or _default_comp
   local start, endi = 0, t.shape[0]-1
-  quicksort_impl(t,comp, swap, start,endi)
+  quicksort_impl(t,comp, swap, start,endi, swaparg)
 end
 
-Array.sort = function(self, axis, comp, swap)
+
+Array.sort = function(self, axis, comp, swap, swaparg)
 -- Return a sorted copy of an array.
 -- 
 -- Parameters :	
@@ -125,7 +165,7 @@ Array.sort = function(self, axis, comp, swap)
     end
     
     -- finally, sort!
-    quicksort(line2,comp,swap)
+    quicksort(line2,comp,swap, swaparg)
     
     -- copy back
     if line2 ~= line then
@@ -134,13 +174,19 @@ Array.sort = function(self, axis, comp, swap)
   end
 end
 
+local _swapper = function(indices, a,b)
+  local temp = indices.data[a]
+  indices.data[a] = indices.data[b]
+  indices.data[b] = temp
+end
+
 Array.argsort = function(self, axis, comp)
--- Return the coordinates array if it were sorted.
+-- Return the coordinates of array if it were sorted.
 -- i.e. array:getCoordinates(array:argsort()) equals array:sort()
 -- 
 -- Parameters :	
 -- axis : int or nil, optional
---        Axis along which to sort. If None, the array is flattened before sorting. 
+--        Axis along which to sort. 
 --        the default is nil which sorts along the last axis
 --
   if axis == nil then
@@ -153,15 +199,9 @@ Array.argsort = function(self, axis, comp)
   local copy = self:copy()
   local indices = Array.arange(0,self.shape[0])
 
-  local swapper = function(a,b)
-    local temp = indices.data[a]
-    indices.data[a] = indices.data[b]
-    indices.data[b] = temp
-  end
-
-  copy:sort(axis,comp,swapper)
-  local coordinates = {}
-  coordinates[0] = indices
-  return coordinates
+  copy:sort(axis,comp,_swapper, indices)
+  local result  = {}
+  result[1] = indices
+  return result
 end
 

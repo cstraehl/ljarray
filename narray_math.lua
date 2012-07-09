@@ -21,6 +21,7 @@ function Array.add(self,other)
     _add_constant_value = other
     self:mapInplace(_add_constant)
   end
+  return self
 end
 
 
@@ -36,6 +37,7 @@ function Array.sub(self,other)
     _sub_constant_value = other
     self:mapInplace(_sub_constant)
   end
+  return self
 end
 
 local _mul_constant_value
@@ -50,6 +52,7 @@ function Array.mul(self,other)
     _mul_constant_value = other
     self:mapInplace(_mul_constant)
   end
+  return self
 end
 
 
@@ -65,6 +68,7 @@ function Array.div(self,other)
     _div_constant_value = other
     self:mapInplace(_div_constant)
   end
+  return self
 end
 
 

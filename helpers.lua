@@ -35,6 +35,17 @@ zeros = function(length)
   return temp
 end
 
+equal = function(tbl1, tbl2)
+  local answer = true
+  for i=0,#tbl1 do
+    if tbl1[i] ~= tbl2[i] then
+      answer = false
+      break
+    end
+  end
+  return answer
+end
+
 
 -- benchmarking function
 benchmark = function(f, count, name)
