@@ -27,5 +27,6 @@ build = {
       ["ljarray.narray_sort"] = "narray_sort.lua",
       ["ljarray.helpers"] = "helpers.lua",
       ["ljarray.benchmark"] = "benchmark.lua",
+      ["ljarray.log"] = "log.lua",
    }
 }
