@@ -108,18 +108,19 @@ end
 end
 
 -- quicksort helper
-local quicksort = function(t,comp,swap,swaparg)
+local quicksort = function(t,comp,swap,swaparg, start, stop)
   assert(t.ndim == 1) --, "quicksort only works for dense 1-d arrays - ndim: " .. t.ndim)
   assert(t.strides[0] == 1) --, "quicksort only works for dense 1-d arrays - strides[0]: " .. t.strides[0])
 
   swap = swap or _default_swap
   comp = comp or _default_comp
-  local start, endi = 0, t.shape[0]-1
-  quicksort_impl(t,comp, swap, start,endi, swaparg)
+  start = start or 0
+  stop = stop or t.shape[0]-1
+  quicksort_impl(t,comp, swap, start,stop, swaparg)
 end
 
 
-Array.sort = function(self, axis, comp, swap, swaparg)
+Array.sort = function(self, axis, comp, starti, stopi)
 -- Return a sorted copy of an array.
 -- 
 -- Parameters :	
@@ -131,6 +132,10 @@ Array.sort = function(self, axis, comp, swap, swaparg)
     axis = self.ndim -1 -- last axis default
   end
   assert(axis < self.ndim, "narray.sort: sort axis larger then number of dimensions")
+
+  starti = starti or 0
+  stopi = stopi or self.shape[axis]
+  stopi = stopi - 1 -- quicksort takes inclusive ranges, we take exclusive stop
   
   -- construct helper view with singleton dimension in axis
   local start = helpers.zeros(self.ndim)
@@ -165,7 +170,7 @@ Array.sort = function(self, axis, comp, swap, swaparg)
     end
     
     -- finally, sort!
-    quicksort(line2,comp,swap, swaparg)
+    quicksort(line2,comp,nil, nil, starti, stopi)
     
     -- copy back
     if line2 ~= line then
@@ -180,7 +185,7 @@ local _swapper = function(indices, a,b)
   indices.data[b] = temp
 end
 
-Array.argsort = function(self, axis, comp)
+Array.argsort = function(self, axis, comp, start, stop)
 -- Return the coordinates of array if it were sorted.
 -- i.e. array:getCoordinates(array:argsort()) equals array:sort()
 -- 
@@ -195,11 +200,15 @@ Array.argsort = function(self, axis, comp)
   --TODO: support multidimensional arrays
   assert(axis < self.ndim, "narray.argsort: sort axis larger then number of dimensions")
   assert(self.ndim == 1, "narray.argsort for now only supports 1-d arrays")
+  start = start or 0
+  stop = stop or self.shape[0]
+  stop = stop - 1 -- quicksort takes inclusive ranges, this functino takes exclusive stop range
 
   local copy = self:copy()
   local indices = Array.arange(0,self.shape[0])
 
-  copy:sort(axis,comp,_swapper, indices)
+  quicksort(copy,comp,_swapper, indices)
+
   local result  = {}
   result[1] = indices
   return result

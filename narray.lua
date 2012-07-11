@@ -237,10 +237,23 @@ function Array.create(shape, dtype, order)
    end                      
    local etype = Array.element_type[dtype]
 
-   -- NOTE: the {0} initializer prevents the VLA array from being initialized
-   -- local data = dtype(size, {etype()}) -- TODO: luajit cannot compile this allocation -> leads to slowdowns
-   local data = ffi.C.malloc(size * Array.element_type_size[etype])
-   data = ffi.cast(cpointer[dtype], data)
+   local data
+
+   -- TODO: luajit cannot compile this data allocation -> leads to slowdowns
+   -- think about avoiding this ? problem: setting a __gc metamethod
+   -- on cdata is also non-jittable...
+   -- possible solution: custom memory arena ?
+   if etype then
+     -- if we found an etype we can prevent ffi from initializing the array
+     -- by providing a near-empty initializer list - which is, of course, 
+     -- much faster
+     data = dtype(size, {etype}) 
+   else
+     data = dtype(size)
+   end
+  
+   -- local data = ffi.C.malloc(size * Array.element_type_size[etype])
+   -- data = ffi.cast(cpointer[dtype], data)
    -- TODO: above allocation is without ffi.gc !!!!
    -- TODO: figure out a way to manage memory without ffi.gc, since
    -- ffi.gc cannot be compiled either
