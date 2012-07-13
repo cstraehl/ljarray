@@ -7,7 +7,7 @@ local ffi = require("ffi")
 local bitop = require("bit")
 local helpers = require("helpers")
 local operator = helpers.operator
-local isnarray = helpers.isnarray
+local isarray = helpers.isarray
 
 
 
@@ -532,7 +532,7 @@ function Array.setCoordinates(self,coord, data)
   local coord = helpers.zerobased(coord)
   assert(#coord  + 1 == self.ndim)
   _set_coord_data = data
-  if isnarray(data) then
+  if isarray(data) then
     assert(data.ndim == 1)
     -- map over the coord array
     self:mapCoordinates(coord, _set_coord1)
@@ -590,10 +590,10 @@ function Array.where(self, boolarray, a, b)
     boolarray = self
     local dtype = Array.float32
     local shape = nil
-    if isnarray(a) then
+    if isarray(a) then
       dtype = a.dtype
       shape = a.shape
-    elseif isnarray(b) then
+    elseif isarray(b) then
       dtype = b.dtype
       shape = b.shape
     else
@@ -604,7 +604,7 @@ function Array.where(self, boolarray, a, b)
 
   local nz = boolarray:nonzero()
   self:assign(b)
-  if isnarray(a) then 
+  if isarray(a) then 
     local values = a:getCoordinates(nz)
     self:setCoordinates(nz,values)
   else -- asume element
@@ -620,7 +620,7 @@ local _assign_constant = function(x)
 end
 
 function Array.assign(self,data)
-  if isnarray(data) then
+  if isarray(data) then
     self:mapBinaryInplace(data, operator.assign)
   else
     _assign_constant_value = data
@@ -691,7 +691,7 @@ end
 function Array.extract(self, condition)
 -- Return the elements of an array that satisfy some condition.
 --
-  assert(helpers.isnarray(condition), "narray.extract: condition must be of type narray")
+  assert(helpers.isarray(condition), "narray.extract: condition must be of type narray")
   assert(helpers.equal(self.shape, condition.shape), "narray.extract: condition and the array must be of equal shape")
   local coords = condition:nonzero() 
   return self:getCoordinates(coords)
@@ -700,7 +700,7 @@ end
 function Array.take_slices(self, indices, axis)
 -- take slices of array along axis for given indices
 --
-  assert(helpers.isnarray(self), "narray.take_slices: first argument is not a narray")
+  assert(helpers.isarray(self), "narray.take_slices: first argument is not a narray")
   assert(indices.ndim == 1, "narray.take_slices: indices is not a one-dimensional narray")
 
   local shape = helpers.copy(self.shape)

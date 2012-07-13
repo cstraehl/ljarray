@@ -7,7 +7,7 @@ local ffi = require("ffi")
 local bitop = require("bit")
 local helpers = require("helpers")
 local operator = helpers.operator
-local isnarray = helpers.isnarray
+local isarray = helpers.isarray
 
 local _add_constant_value
 local _add_constant = function(x)
@@ -15,7 +15,7 @@ local _add_constant = function(x)
 end
 
 function Array.add(self,other)
-  if isnarray(other) then
+  if isarray(other) then
     self:mapBinaryInplace(other, operator.add)
   else
     _add_constant_value = other
@@ -31,7 +31,7 @@ local _sub_constant = function(x)
 end
 
 function Array.sub(self,other)
-  if isnarray(other) then
+  if isarray(other) then
     self:mapBinaryInplace(other, operator.sub)
   else
     _sub_constant_value = other
@@ -46,7 +46,7 @@ local _mul_constant = function(x)
 end
 
 function Array.mul(self,other)
-  if isnarray(other) then
+  if isarray(other) then
     self:mapBinaryInplace(other, operator.mul)
   else
     _mul_constant_value = other
@@ -62,7 +62,7 @@ local _div_constant = function(x)
 end
 
 function Array.div(self,other)
-  if isnarray(other) then
+  if isarray(other) then
     self:mapBinaryInplace(other, operator.div)
   else
     _div_constant_value = other
@@ -83,7 +83,7 @@ end
 
 function Array.eq(self,other, order)
   local result = Array.create(self.shape, Array.int8, order)
-  if isnarray(other) then
+  if isarray(other) then
     result:mapTenaryInplace(self, other, function(a,b,c) if b == c then return 1 else return 0 end end)
   else
     _eq_constant_value = ffi.cast(self.element_type, other)
@@ -104,7 +104,7 @@ end
 
 function Array.neq(self,other, order)
   local result = Array.create(self.shape, Array.int8, order)
-  if isnarray(other) then
+  if isarray(other) then
     result:mapTenaryInplace(self, other, function(a,b,c) if b == c then return 0 else return 1 end end)
   else
     _neq_constant_value = ffi.cast(self.element_type, other)
@@ -125,7 +125,7 @@ end
 
 function Array.gt(self,other, order)
   local result = Array.create(self.shape, Array.int8, order)
-  if isnarray(other) then
+  if isarray(other) then
     result:mapTenaryInplace(self, other, function(a,b,c) if b > c then return 1 else return 0 end end)
   else
     _gt_constant_value = ffi.cast(self.element_type, other)
@@ -146,7 +146,7 @@ end
 
 function Array.ge(self,other, order)
   local result = Array.create(self.shape, Array.int8, order)
-  if isnarray(other) then
+  if isarray(other) then
     result:mapTenaryInplace(self, other, function(a,b,c) if b >= c then return 1 else return 0 end end)
   else
     _ge_constant_value = ffi.cast(self.element_type, other)
@@ -167,7 +167,7 @@ end
 
 function Array.lt(self,other, order)
   local result = Array.create(self.shape, Array.int8, order)
-  if isnarray(other) then
+  if isarray(other) then
     result:mapTenaryInplace(self, other, function(a,b,c) if b < c then return 1 else return 0 end end)
   else
     _lt_constant_value = ffi.cast(self.element_type, other)
@@ -188,7 +188,7 @@ end
 
 function Array.le(self,other, order)
   local result = Array.create(self.shape, Array.int8, order)
-  if isnarray(other) then
+  if isarray(other) then
     result:mapTenaryInplace(self, other, function(a,b,c) if b <= c then return 1 else return 0 end end)
   else
     _le_constant_value = ffi.cast(self.element_type, other)

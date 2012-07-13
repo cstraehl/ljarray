@@ -1,4 +1,4 @@
-local narray = require("narray")
+local narray = require("array")
 
 local bcount = 200
 local bshape = {100,100,100}

@@ -19,7 +19,7 @@ operator = {
      assign  = function(a,b) return b end; 
  }
 
-isnarray = function(a)
+isarray = function(a)
   if type(a) == "table" and (a.__metatable == Array or a._type == "narray") then
     return true
   else
@@ -185,7 +185,12 @@ function to_string( tbl )
     else
         return tostring(tbl)
     end
-end
+end 
+
+-- printf helper
+function printf(s,...)
+ return io.write(s:format(...))
+end -- function
 
 
 -- helpers to protect agains undefined globals, or any globals at all

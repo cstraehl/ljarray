@@ -1,32 +1,7 @@
---  narray.lua - a tiny multidimensional array library for luajit
+--  array.lua - a tiny multidimensional array library for luajit
 --  Copyright Christoph Straehle (cstraehle@gmail.com)
 --  License: BSD
 --
---
---
--- Investigate LUAJIT strangeness:
---
--- 1) luajit seems to specialize to a function only one time
---    calling the function a second time with different arugment
---    types does not seem to trigger a retrace.
---    leads to very different benchmark results depending
---    on order of benchmark execution.
---
---    Trying to force a retrace/new specialization by using closures
---    does not seem to work..
---
---    Ugly Fix: -Omaxtrace=single digit
---    this seems to flush the trace cache often enough to force
---    an agressive respecialization.
---
--- 2) calling a function defined as Array:function(a,b,c) 
---   is slower then calling the same function
---   defined as Array.function(self, ab, c) ??
---
---
-
-Array = {}
-Array.__index = Array
 
 -- extend package.path with path of this .lua file:
 local filepath = debug.getinfo(1).source:match("@(.*)$") 
@@ -39,86 +14,16 @@ local bitop = require("bit")
 local helpers = require("helpers")
 local operator = helpers.operator
 
--- throw errors on global variable declaration
-local _helpers_forbid_globals_backup = helpers.__FORBID_GLOBALS
-helpers.__FORBID_GLOBALS = true
-
+Array = {}
+Array.__index = Array
 
 -- load additional functionality
-require("narray_base")
-require("narray_math")
-require("narray_sort")
+require("array_base")
+require("array_math")
+require("array_sort")
+require("array_types")
 
-ffi.cdef[[
-void *malloc(size_t size);
-void free(void *ptr);
-]]
 
--- some VLA ffi types for arrays
-Array.element_type = {}
-
-Array.int8 = ffi.typeof("int8_t[?]");
-Array.element_type[Array.int8] = ffi.typeof("int8_t")
-
-Array.int32 = ffi.typeof("int32_t[?]");
-Array.element_type[Array.int32] = ffi.typeof("int32_t")
-
-Array.int64 = ffi.typeof("int64_t[?]");
-Array.element_type[Array.int64] = ffi.typeof("int64_t")
-
-Array.uint8 = ffi.typeof("uint8_t[?]");
-Array.element_type[Array.uint8] = ffi.typeof("uint8_t")
-
-Array.uint32 = ffi.typeof("uint32_t[?]");
-Array.element_type[Array.uint32] = ffi.typeof("uint32_t")
-
-Array.uint64 = ffi.typeof("uint64_t[?]");
-Array.element_type[Array.uint64] = ffi.typeof("uint64_t")
-
-Array.float32 = ffi.typeof("float[?]");
-Array.element_type[Array.float32] = ffi.typeof("float")
-
-Array.float64 = ffi.typeof("double[?]");
-Array.element_type[Array.float64] = ffi.typeof("double")
-
-Array.pointer = ffi.typeof("void *");
-Array.element_type[Array.pointer] = ffi.typeof("void *")
-
--- pointer types
-local cpointer = {}
-cpointer.int8 = ffi.typeof("int8_t*");
-cpointer[Array.int8] = cpointer.int8
-
-cpointer.int32 = ffi.typeof("int32_t*");
-cpointer[Array.int32] = cpointer.int32
-
-cpointer.int64 = ffi.typeof("int64_t*");
-cpointer[Array.int64] = cpointer.int64
-
-cpointer.uint8 = ffi.typeof("uint8_t*");
-cpointer[Array.uint8] = cpointer.uint8
-
-cpointer.uint32 = ffi.typeof("uint32_t*");
-cpointer[Array.uint32] = cpointer.uint32
-
-cpointer.uint64 = ffi.typeof("uint64_t*");
-cpointer[Array.uint64] = cpointer.uint64
-
-cpointer.float32 = ffi.typeof("float*");
-cpointer[Array.float32] = cpointer.float32
-
-cpointer.float64 = ffi.typeof("double*");
-cpointer[Array.float64] = cpointer.float64
-
-Array.element_type_size = {}
-for k,v in pairs(Array.element_type) do
-  Array.element_type_size[v] = ffi.sizeof(v)
-end
-
--- for k,v in pairs(cpointer) do
---   print(v)
---   ffi.gc(v,ffi.C.free)
--- end
 
 -- create array from existing data pointer
 --
@@ -467,24 +372,9 @@ function Array.fromNumpyArray(ndarray)
 end
 
 
-local _print_element = function(x)
-  io.write(x, " ")
-  return x
-end
-
-function Array.print(self)
-  self:mapInplace( _print_element)
-  io.write("Array", tostring(self), "(shape = ", helpers.to_string(self.shape))
-  io.write(", stride = ", helpers.to_string(self.strides))
-  io.write(", dtype = ", tostring(self.dtype), ")")
-end
-
 Array.__tostring = function(self)
   local result = "Array" .. "(shape = " .. helpers.to_string(self.shape) .. ", stride = ".. helpers.to_string(self.strides) ..  ", dtype = ".. tostring(self.dtype) .. ")"
   return result
 end
-
--- restore __FORBID_GLOBALS behaviour
-helpers.__FORBID_GLOBALS = _helpers_forbid_globals_backup
 
 return Array            

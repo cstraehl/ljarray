@@ -1,4 +1,4 @@
-local narray = require("narray")
+local narray = require("array")
 
 test_shape = {100,3,6}
 
@@ -159,6 +159,15 @@ assert(t.shape[0] == 100)
 assert(t.shape[1] == 200)
 assert(t:ge(17):all())
 assert(t:lt(333):all())
+
+log = require("log")
+
+log.indent("TEST")
+log.log("warning", "%d - hallo %f\n", 100, 1.0)
+log.log("error", "Akradabra error %d - hallo %f\n", 100, 1.0)
+log.log("error", "zweiter fehler error %d - hallo %f\n", 100, 1.0)
+local info = log.unindent()
+log.print_runtime(info)
 
 
 -- test narray sort

@@ -7,7 +7,7 @@ local ffi = require("ffi")
 local bitop = require("bit")
 local helpers = require("helpers")
 local operator = helpers.operator
-local isnarray = helpers.isnarray
+local isarray = helpers.isarray
 
 
 -- insertion sort helper - used by quicksort_impl for small ranges
@@ -25,26 +25,6 @@ local function inssort(v, low, high, comp, swap, swaparg)
   end
   return nil, high, low
 end
-
-local function swap3(v,ai, bi, ci, comp)
-  local a, b, c = v.data[ai], v.data[bi], v.data[ci]
-  if comp(a,b) then
-    if comp(b,c) then
-      return bi
-    elseif comp(a,c) then
-      return ci
-    else
-      return ai
-    end
-  elseif comp(a,c) then
-    return ai
-  elseif comp(b,c) then
-    return ci
-  else
-    return bi
-  end
-end
-
 
 -- default comparison function
 local _default_comp = function(a,b)
@@ -185,7 +165,7 @@ local _swapper = function(indices, a,b)
   indices.data[b] = temp
 end
 
-Array.argsort = function(self, axis, comp, start, stop)
+Array.argsort = function(self, axis, comp, start, stop, out)
 -- Return the coordinates of array if it were sorted.
 -- i.e. array:getCoordinates(array:argsort()) equals array:sort()
 -- 
@@ -203,11 +183,24 @@ Array.argsort = function(self, axis, comp, start, stop)
   start = start or 0
   stop = stop or self.shape[0]
   stop = stop - 1 -- quicksort takes inclusive ranges, this functino takes exclusive stop range
+  assert(stop > start)
 
-  local copy = self:copy()
-  local indices = Array.arange(0,self.shape[0])
+  local copy
+  local indices
+  -- asume if out was given, we are allowed to sort inplace..
+  -- otherwise make a copy
+  if out ~= nil then
+    assert(out.ndim == 1)
+    assert(out.shape[0] >= stop)
+    copy = self
+    indices = out
+  else
+    copy = self:copy()
+    indices = Array.arange(0,self.shape[0])
+  end
 
-  quicksort(copy,comp,_swapper, indices)
+
+  quicksort(copy,comp,_swapper, indices, start, stop-1)
 
   local result  = {}
   result[1] = indices
