@@ -61,6 +61,8 @@ cpointer[Array.float32] = cpointer.float32
 cpointer.float64 = ffi.typeof("double*");
 cpointer[Array.float64] = cpointer.float64
 
+Array.cpointer = cpointer
+
 Array.element_type_size = {}
 for k,v in pairs(Array.element_type) do
   Array.element_type_size[v] = ffi.sizeof(v)

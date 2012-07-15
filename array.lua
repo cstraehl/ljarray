@@ -42,12 +42,12 @@ require("array_types")
 function Array.fromData(ptr, dtype, shape, strides, source)
   local array = {}
   setmetatable(array,Array)
-  array._type = "narray"
+  array._type = "array"
   array.data = ptr
   array.memory = tonumber(ffi.cast("int", array.data))  
   array.dtype = dtype
   array.element_type = Array.element_type[dtype]
-  --array.str_dtype = tostring(array.element_type)
+  array.str_dtype = tostring(array.element_type)
   
   if shape[0] == nil then
     array.ndim = #shape
@@ -135,7 +135,7 @@ function Array.create(shape, dtype, order)
    -- filling. 
    -- BEWARE: array is uninitialized 
    
-   assert(type(shape) == "table", "narray.create: shape must be of type table")
+   assert(type(shape) == "table", "array.create: shape must be of type table")
    local size = helpers.reduce(operator.mul, helpers.zerobased(shape), 1)
    if dtype == nil then
      dtype = Array.float32
@@ -221,7 +221,7 @@ end
 
 
 function Array.arange(start,stop,step,dtype)
--- narray.arange([start], stop[, step], dtype=None)
+-- array.arange([start], stop[, step], dtype=None)
 -- Return evenly spaced values within a given interval.
 -- 
 -- Values are generated within the half-open interval [start, stop)
@@ -319,10 +319,10 @@ function Array.bind(self,dimension, start, stop)
 -- if no stop index is given the ndim of the returned
 -- view is self.ndim-1
 --
-  assert(dimension ~= nil, "narray.bind: dimension is nil")
-  assert(start ~= nil, "narray.bind: start index is nil")
-  assert(dimension < self.ndim, "narray.bind: dimension larger then array dimension.")
-  assert(self.shape[dimension] >= start, "narray.bind: start index larger then shape")
+  assert(dimension ~= nil, "array.bind: dimension is nil")
+  assert(start ~= nil, "array.bind: start index is nil")
+  assert(dimension < self.ndim, "array.bind: dimension larger then array dimension.")
+  assert(self.shape[dimension] >= start, "array.bind: start index larger then shape")
   if stop then
     assert(self.shape[dimension] >= stop)
   assert(start<=stop)
@@ -356,9 +356,9 @@ end
 
 
 function Array.fromNumpyArray(ndarray)
--- construct narray from numpy.ndarray (as given by lupa a python<->lua bride)
--- the numpy array and the narray share the same memory
-  local dtype = cpointer[tostring(ndarray.dtype)]
+-- construct array from numpy.ndarray (as given by lupa a python<->lua bride)
+-- the numpy array and the array share the same memory
+  local dtype = Array.cpointer[tostring(ndarray.dtype)]
   local data = ffi.cast(dtype,ndarray.ctypes.data)
   local shape = {}
   local strides = {}

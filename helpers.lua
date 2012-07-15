@@ -20,7 +20,7 @@ operator = {
  }
 
 isarray = function(a)
-  if type(a) == "table" and (a.__metatable == Array or a._type == "narray") then
+  if type(a) == "table" and (a.__metatable == Array or a._type == "array") then
     return true
   else
     return false

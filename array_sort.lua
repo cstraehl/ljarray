@@ -200,7 +200,7 @@ Array.argsort = function(self, axis, comp, start, stop, out)
   end
 
 
-  quicksort(copy,comp,_swapper, indices, start, stop-1)
+  quicksort(copy,comp,_swapper, indices, start, stop)
 
   local result  = {}
   result[1] = indices
