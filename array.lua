@@ -137,7 +137,7 @@ function Array.create(shape, dtype, order)
    
    assert(type(shape) == "table", "array.create: shape must be of type table")
    local size = helpers.reduce(operator.mul, helpers.zerobased(shape), 1)
-   if dtype == nil then
+   if not dtype then
      dtype = Array.float32
    end                      
    local etype = Array.element_type[dtype]
