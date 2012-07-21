@@ -26,6 +26,26 @@ local function inssort(v, low, high, comp, swap, swaparg)
   return nil, high, low
 end
 
+-- local function inssort(v, low, high, comp, swap, swaparg)
+--   for i = low, high do
+--     local idx = i
+--     for j = i+1, high do
+--       if comp(v.data[j], v.data[idx]) then
+--         idx = j
+--       end
+--     end
+--     if idx ~= i then
+--       local temp = v.data[idx]
+--       v.data[idx] = v.data[i]
+--       v.data[i] = temp
+--       swap(swaparg, idx, i)
+--     end
+--   end
+--   return nil, high, low
+-- end
+
+
+
 -- default comparison function
 local _default_comp = function(a,b)
   return a < b
@@ -35,55 +55,94 @@ end
 local _default_swap = function(i1,i2)
 end
 
+local med3 = function(t, a,b,c, comp)
+  if comp(t.data[a], t.data[b]) then
+    if comp(t.data[b], t.data[c]) then
+      return b
+    else
+      if comp(t.data[a], t.data[c]) then
+        return c
+      else
+        return a
+      end
+    end
+  else
+    if comp(t.data[a], t.data[c]) then
+      return a 
+    else
+      if comp(t.data[b], t.data[c]) then
+        return c
+      else
+        return b
+      end
+    end
+  end
+end
+
+local med9 = function(t, start, stop, comp)
+  local n = stop - start
+  local mid = start + bitop.rshift(n,1)
+  local step = bitop.rshift(n, 3)
+  local step2 = bitop.lshift(step,1)
+
+  local p1 = med3(t, start, start + step, start + step2, comp)
+  local p2 = med3(t, mid - step, mid, mid +step, comp)
+  local p3 = med3(t, stop - step2, stop - step, stop, comp)
+
+  return med3(t, p1, p2, p3, comp)
+end
 
  --in-place quicksort
  local quicksort_impl
  quicksort_impl = function(t, comp,swap,start, endi, swaparg)
-   if endi-start < 50 then
+   local n = endi - start
+   if n < 40 then
      inssort(t,start,endi, comp, swap, swaparg)
      return t
    end
 
-  -- -- move median of first, middle and last element to front
-  -- local mid = math.floor((start + endi) / 2)
-  -- local mid_i = swap3(t, start, mid, endi-1, comp)
-  -- swap(swaparg, start, mid_i)
-  -- t.data[start], t.data[mid_i]= t.data[mid_i], t.data[start]
-
   -- random pivot choice
-  local pivot = math.floor(math.random()*(endi-start)+start)
+  -- local pivot = math.random(start,endi)
+  local mid = start + bitop.rshift(endi-start,1)
+  local pivot = med3(t, start, mid, endi, comp)
+  -- local pivot = med9(t, start, endi, comp)
+
   swap(swaparg, start, pivot)
   local temp = t.data[start]
   t.data[start] = t.data[pivot]
   t.data[pivot] = temp
 
-  --partition w.r.t. first element
-  if not comp(t.data[start],t.data[start+1]) then
-    local temp = t.data[start+1]
-    t.data[start+1] = t.data[start]
-    t.data[start] = temp
-    swap(swaparg,start,start+1)
-  end
-  local pivot = start
-  for i = start + 2, endi do
-    if comp(t.data[i],t.data[pivot]) then
-      local temp = t.data[pivot + 1]
-      t.data[pivot + 1] = t.data[pivot]
-      t.data[pivot] = t.data[i]
-      t.data[i] = temp
-      swap(swaparg,pivot,pivot+1)
-      swap(swaparg,pivot,i)
-      pivot = pivot + 1
+  local  i = start
+  local  j = endi+1
+
+  while true do
+    repeat
+      i = i + 1
+    until not (comp(t.data[i],t.data[start]) and i <= endi)
+    repeat
+      j = j - 1
+    until not comp(t.data[start], t.data[j])
+    if j < i then    
+      break
     end
+    swap(swaparg, i, j)
+    temp = t.data[i]
+    t.data[i] = t.data[j]
+    t.data[j] = temp
   end
+  pivot = j
+  swap(swaparg,start, pivot)
+  temp = t.data[start]
+  t.data[start] = t.data[pivot]
+  t.data[pivot] = temp
 
   -- recurse using tail call optimization
-  if pivot - start < endi - pivot then
-    quicksort_impl(t,comp,swap,start, pivot - 1, swaparg)
-    return quicksort_impl(t,comp,swap,pivot + 1, endi, swaparg)
+  if pivot - start < endi - i then
+    quicksort_impl(t,comp,swap,start, pivot -1, swaparg)
+    return quicksort_impl(t,comp,swap,i , endi, swaparg)
   else
-    quicksort_impl(t,comp,swap,pivot + 1, endi, swaparg)
-    return quicksort_impl(t,comp,swap,start, pivot - 1, swaparg)
+    quicksort_impl(t,comp,swap,i, endi, swaparg)
+    return quicksort_impl(t,comp,swap,start, pivot-1 , swaparg)
   end
 end
 
@@ -165,7 +224,7 @@ local _swapper = function(indices, a,b)
   indices.data[b] = temp
 end
 
-Array.argsort = function(self, axis, comp, start, stop, out)
+Array.argsort = function(self, axis, comp, start, stop, out, inplace)
 -- Return the coordinates of array if it were sorted.
 -- i.e. array:getCoordinates(array:argsort()) equals array:sort()
 -- 
@@ -194,6 +253,9 @@ Array.argsort = function(self, axis, comp, start, stop, out)
     assert(out.shape[0] >= stop)
     copy = self
     indices = out
+  elseif inplace == true then
+    copy = self
+    indices = Array.arange(0,self.shape[0])
   else
     copy = self:copy()
     indices = Array.arange(0,self.shape[0])
