@@ -66,4 +66,5 @@ Array.cpointer = cpointer
 Array.element_type_size = {}
 for k,v in pairs(Array.element_type) do
   Array.element_type_size[v] = ffi.sizeof(v)
+  Array.cpointer[v] = Array.cpointer[k]
 end

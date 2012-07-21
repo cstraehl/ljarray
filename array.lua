@@ -149,10 +149,8 @@ function Array.create(shape, dtype, order)
    -- on cdata is also non-jittable...
    -- possible solution: custom memory arena ?
    if etype then
-     -- if we found an etype we can prevent ffi from initializing the array
-     -- by providing a near-empty initializer list - which is, of course, 
-     -- much faster
-     data = dtype(size, {etype}) 
+      data = ffi.cast(Array.cpointer[etype], ffi.C.malloc(size * Array.element_type_size[etype]))
+      ffi.gc(data, ffi.C.free)
    else
      data = dtype(size)
    end
@@ -277,18 +275,6 @@ function Array.view(self,start, stop)
   stop = helpers.zerobased(stop)
   assert(#start == #stop, "dimension of start and stop differ ") -- ..#start .." vs ".. #stop)
   assert(#start + 1 == self.ndim)
-
-  if start[0] == nil then
-    newstart = {}
-    newstop = {}
-    for i=0,self.ndim-1,1 do
-      newstart[i] = start[i+1]
-      newstop[i] = stop[i+1]
-    end
-    start = newstart
-    stop = newstop
-  end
-
 
   -- calcualte data pointer offset
   local offset = 0

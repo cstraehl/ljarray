@@ -753,7 +753,7 @@ function Array.permute(self)
 
   for pos in self:coordinates() do
     for i = 0, self.ndim -1 do
-      dest[i] = math.floor(math.random()*self.shape[i])
+      dest[i] = math.random(0,self.shape[i]-1)
     end
     local temp = self:getPos(pos)
     self:setPos(pos,self:getPos(dest))
