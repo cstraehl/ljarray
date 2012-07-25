@@ -100,11 +100,7 @@ function Array.fromData(ptr, dtype, shape, strides, source)
     assert(#(array.strides) == #shape)
   end
   array.shape = shape
-  if not source then
-    array.source = nil
-  else
-    array.source = source
-  end
+  array.base_data = source or array.data
   -- calculate size (number of elements)
   array.size = helpers.reduce(operator.mul, shape, 1)
   array:fixMethodsDim()
@@ -145,9 +141,6 @@ function Array.create(shape, dtype, order)
    local data
 
    -- TODO: luajit cannot compile this data allocation -> leads to slowdowns
-   -- think about avoiding this ? problem: setting a __gc metamethod
-   -- on cdata is also non-jittable...
-   -- possible solution: custom memory arena ?
    if etype then
       data = ffi.cast(Array.cpointer[etype], ffi.C.malloc(size * Array.element_type_size[etype]))
       ffi.gc(data, ffi.C.free)
@@ -155,11 +148,6 @@ function Array.create(shape, dtype, order)
      data = dtype(size)
    end
   
-   -- local data = ffi.C.malloc(size * Array.element_type_size[etype])
-   -- data = ffi.cast(cpointer[dtype], data)
-   -- TODO: above allocation is without ffi.gc !!!!
-   -- TODO: figure out a way to manage memory without ffi.gc, since
-   -- ffi.gc cannot be compiled either
    return Array.fromData(data,dtype,shape,order)
 end
 
@@ -289,7 +277,7 @@ function Array.view(self,start, stop)
   -- calculate strides
   local strides = self.strides
   
-  return Array.fromData(data, self.dtype,  shape, strides, self)
+  return Array.fromData(data, self.dtype,  shape, strides, self.base_data)
 end
 
 function Array.bind(self,dimension, start, stop)
@@ -336,7 +324,7 @@ function Array.bind(self,dimension, start, stop)
       shape[i-1] = self.shape[i]
     end
   end
-  return Array.fromData(data,self.dtype, shape, strides, self)
+  return Array.fromData(data,self.dtype, shape, strides, self.base_data)
 end
 
 
