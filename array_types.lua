@@ -11,6 +11,9 @@ Array.element_type = {}
 Array.int8 = ffi.typeof("int8_t[?]");
 Array.element_type[Array.int8] = ffi.typeof("int8_t")
 
+Array.int16 = ffi.typeof("int16_t[?]");
+Array.element_type[Array.int16] = ffi.typeof("int16_t")
+
 Array.int32 = ffi.typeof("int32_t[?]");
 Array.element_type[Array.int32] = ffi.typeof("int32_t")
 
@@ -19,6 +22,9 @@ Array.element_type[Array.int64] = ffi.typeof("int64_t")
 
 Array.uint8 = ffi.typeof("uint8_t[?]");
 Array.element_type[Array.uint8] = ffi.typeof("uint8_t")
+
+Array.uint16 = ffi.typeof("uint16_t[?]");
+Array.element_type[Array.uint16] = ffi.typeof("uint16_t")
 
 Array.uint32 = ffi.typeof("uint32_t[?]");
 Array.element_type[Array.uint32] = ffi.typeof("uint32_t")
@@ -40,6 +46,9 @@ local cpointer = {}
 cpointer.int8 = ffi.typeof("int8_t*");
 cpointer[Array.int8] = cpointer.int8
 
+cpointer.int16 = ffi.typeof("int16_t*");
+cpointer[Array.int16] = cpointer.int16
+
 cpointer.int32 = ffi.typeof("int32_t*");
 cpointer[Array.int32] = cpointer.int32
 
@@ -48,6 +57,9 @@ cpointer[Array.int64] = cpointer.int64
 
 cpointer.uint8 = ffi.typeof("uint8_t*");
 cpointer[Array.uint8] = cpointer.uint8
+
+cpointer.uint16 = ffi.typeof("uint16_t*");
+cpointer[Array.uint16] = cpointer.uint16
 
 cpointer.uint32 = ffi.typeof("uint32_t*");
 cpointer[Array.uint32] = cpointer.uint32
