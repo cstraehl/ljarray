@@ -135,12 +135,13 @@ function Array.create(shape, dtype, order)
    local size = helpers.reduce(operator.mul, helpers.zerobased(shape), 1)
    dtype = dtype or Array.float32
    local etype = Array.element_type[dtype]
-
    local data
 
    -- TODO: luajit cannot compile this data allocation -> leads to slowdowns
    if etype then
-      data = ffi.cast(Array.cpointer[etype], ffi.C.malloc(size * Array.element_type_size[etype]))
+      data = ffi.C.malloc(size * Array.element_type_size[etype])
+      assert(not (data == nil), "LJARRY ALLOCATION ERROR: OUT OF MEMORY")
+      data = ffi.cast(Array.cpointer[etype], data) 
       ffi.gc(data, ffi.C.free)
    else
      data = dtype(size)

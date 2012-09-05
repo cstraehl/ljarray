@@ -103,12 +103,10 @@ reduce = function(func, tbl, initial)
   local result = initial
   local start = 0
   local stop = #tbl
-  assert(tbl[0] ~= nil)
   if tbl[0] == nil then
     start = 1
-    stop = #tbl
   end
-  for i=start,stop,1 do
+  for i=start,stop do
       result = func(result, tbl[i])
   end
   return result
