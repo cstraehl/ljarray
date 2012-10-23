@@ -86,7 +86,7 @@ function Array.eq(self,other, order)
   if isarray(other) then
     result:mapTenaryInplace(self, other, function(a,b,c) if b == c then return 1 else return 0 end end)
   else
-    _eq_constant_value = ffi.cast(self.element_type, other)
+    _eq_constant_value = ffi.cast(self.dtype, other)
     result:mapBinaryInplace(self, _eq_constant)
   end
   return result
@@ -107,7 +107,7 @@ function Array.neq(self,other, order)
   if isarray(other) then
     result:mapTenaryInplace(self, other, function(a,b,c) if b == c then return 0 else return 1 end end)
   else
-    _neq_constant_value = ffi.cast(self.element_type, other)
+    _neq_constant_value = ffi.cast(self.dtype, other)
     result:mapBinaryInplace(self, _neq_constant)
   end
   return result
@@ -128,7 +128,7 @@ function Array.gt(self,other, order)
   if isarray(other) then
     result:mapTenaryInplace(self, other, function(a,b,c) if b > c then return 1 else return 0 end end)
   else
-    _gt_constant_value = ffi.cast(self.element_type, other)
+    _gt_constant_value = ffi.cast(self.dtype, other)
     result:mapBinaryInplace(self, _gt_constant)
   end
   return result
@@ -149,7 +149,7 @@ function Array.ge(self,other, order)
   if isarray(other) then
     result:mapTenaryInplace(self, other, function(a,b,c) if b >= c then return 1 else return 0 end end)
   else
-    _ge_constant_value = ffi.cast(self.element_type, other)
+    _ge_constant_value = ffi.cast(self.dtype, other)
     result:mapBinaryInplace(self, _ge_constant)
   end
   return result
@@ -170,7 +170,7 @@ function Array.lt(self,other, order)
   if isarray(other) then
     result:mapTenaryInplace(self, other, function(a,b,c) if b < c then return 1 else return 0 end end)
   else
-    _lt_constant_value = ffi.cast(self.element_type, other)
+    _lt_constant_value = ffi.cast(self.dtype, other)
     result:mapBinaryInplace(self, _lt_constant)
   end
   return result
@@ -191,7 +191,7 @@ function Array.le(self,other, order)
   if isarray(other) then
     result:mapTenaryInplace(self, other, function(a,b,c) if b <= c then return 1 else return 0 end end)
   else
-    _le_constant_value = ffi.cast(self.element_type, other)
+    _le_constant_value = ffi.cast(self.dtype, other)
     result:mapBinaryInplace(self, _le_constant)
   end
   return result
@@ -227,3 +227,49 @@ function Array.any(self)
   return _any_result
 end
 
+
+local _max_result
+local _find_max = function(a)
+  if a > _max_result then
+      _max_result = a
+  end
+  return a
+end
+
+--- get element of maximum value
+function Array.max(self)
+  _max_result = self.data[0]
+  self:mapInplace(_find_max)
+  return _max_result
+end
+
+
+
+local _min_result
+local _find_min = function(a)
+  if a < _min_result then
+      _min_result = a
+  end
+  return a
+end
+
+--- get element of minimum value
+function Array.min(self)
+  _min_result = self.data[0]
+  self:mapInplace(_find_min)
+  return _min_result
+end
+
+
+local _sum_result
+local _find_sum = function(a)
+  _sum_result = _sum_result + a
+  return a
+end
+
+--- get element of minimum value
+function Array.sum(self)
+  _sum_result = 0
+  self:mapInplace(_find_sum)
+  return _sum_result
+end

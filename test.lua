@@ -197,3 +197,17 @@ t = t:getCoordinates(coordinates)
 for i=0,t.shape[0]-2 do
   assert(t.data[i] <= t.data[i+1], "sorting failed at index " .. i .. ":" .. t.data[i] .." is not <= " .. t.data[i+1])
 end
+
+
+
+-- test max
+local t = array.create({100,200})
+t:assign(100)
+t:set(10,10,200)
+local r = t:max()
+assert(r == 200, r)
+
+-- test max
+t:set(10,10,0)
+local r = t:min()
+assert(r == 0)

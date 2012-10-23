@@ -46,7 +46,7 @@ function Array.fromData(ptr, dtype, shape, strides, source)
   array.data = ptr
   array.memory = tonumber(ffi.cast("int", array.data))  
   array.dtype = dtype
-  array.element_type = Array.element_type[dtype]
+  assert(dtype ~= nil)
   array.str_dtype = tostring(array.element_type)
   
   if shape[0] == nil then
@@ -134,18 +134,21 @@ function Array.create(shape, dtype, order)
    assert(type(shape) == "table", "array.create: shape must be of type table")
    local size = helpers.reduce(operator.mul, helpers.zerobased(shape), 1)
    dtype = dtype or Array.float32
-   local etype = Array.element_type[dtype]
-   local data
+   if type(dtype) == "string" then
+       local ffi_dtype = Array[dtype]
+       if ffi_dtype == nil then
+           -- dtype was not yet registered
+           ffi_dtype = ffi.typeof(dtype)
+           Array.register_dtype(dtype, ffi_dtype)
+       end
+       dtype = ffi_dtype
+   end
 
    -- TODO: luajit cannot compile this data allocation -> leads to slowdowns
-   if etype then
-      data = ffi.C.malloc(size * Array.element_type_size[etype])
-      assert(not (data == nil), "LJARRY ALLOCATION ERROR: OUT OF MEMORY")
-      data = ffi.cast(Array.cpointer[etype], data) 
-      ffi.gc(data, ffi.C.free)
-   else
-     data = dtype(size)
-   end
+   local data = ffi.C.malloc(size * Array.dtype_size[dtype])
+   assert(not (data == nil), "LJARRY ALLOCATION ERROR: OUT OF MEMORY")
+   data = ffi.cast(Array.dtype_pointer[dtype], data) 
+   ffi.gc(data, ffi.C.free)
   
    return Array.fromData(data,dtype,shape,order)
 end
@@ -331,8 +334,10 @@ end
 function Array.fromNumpyArray(ndarray)
 -- construct array from numpy.ndarray (as given by lupa a python<->lua bride)
 -- the numpy array and the array share the same memory
-  local dtype = Array.cpointer[tostring(ndarray.dtype)]
-  local data = ffi.cast(dtype,ndarray.ctypes.data)
+  local dtype = Array[tostring(ndarray.dtype)]
+  assert(dtype ~= nil, dtype)
+  local ptype = Array.dtype_pointer[dtype]
+  local data = ffi.cast(ptype,ndarray.ctypes.data)
   local shape = {}
   local strides = {}
   local elem_size = ndarray.nbytes / ndarray.size
@@ -343,6 +348,34 @@ function Array.fromNumpyArray(ndarray)
   local array = Array.fromData(data, dtype, shape, strides, ndarray)
   return array
 end
+
+
+Array.__to_gff = function(self)
+    local copy = self:copy() -- densify array
+    local temps = ffi.string(copy.data, copy.size * self.dtype_size[self.dtype]) -- create string view
+    -- create temporary 1-based shape
+    local shape = {}
+    for i=0,#self.shape do
+        shape[i+1] = self.shape[i]
+    end
+
+    local settings = { shape = shape, size = self.size, dtype = self.dtype_string[self.dtype] }
+    return temps, settings
+end
+
+Array.__gff_type = function(self)
+    return "array"
+end
+
+local success, gff = pcall(require("gff"))
+if success then
+    gff.register_type("array", function(s, settings, name, file)
+        local array = Array.create(settings.shape, settings.dtype)
+        ffi.copy(array.data,s,#s) 
+        return array
+    end)
+end
+
 
 
 Array.__tostring = function(self)
