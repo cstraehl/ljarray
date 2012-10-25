@@ -2,7 +2,6 @@
 --  Copyright Christoph Straehle (cstraehle@gmail.com)
 --  License: BSD
 --
-
 -- extend package.path with path of this .lua file:
 local filepath = debug.getinfo(1).source:match("@(.*)$") 
 local dir = string.gsub(filepath, '/[^/]+$', '') .. "/"
@@ -40,6 +39,9 @@ require("array_types")
 --  source : an objects whose reference is stored
 --           usecase: custom allocators
 function Array.fromData(ptr, dtype, shape, strides, source)
+  assert(ptr ~= nil, "Array.fromData: no pointer given")
+  assert(dtype ~= nil,"Array.fromData: no dtype given")
+  assert(shape ~= nil,"Array.fromData: no shape given")
   local array = {}
   setmetatable(array,Array)
   array._type = "array"
@@ -49,17 +51,8 @@ function Array.fromData(ptr, dtype, shape, strides, source)
   assert(dtype ~= nil)
   array.str_dtype = tostring(array.element_type)
   
-  if shape[0] == nil then
-    array.ndim = #shape
-    local newshape = {}
-    -- 1 based shape
-    for i = 1, array.ndim, 1 do
-      newshape[i-1] = shape[i]
-    end
-    shape = newshape
-  else
-    array.ndim = #shape + 1
-  end
+  shape = helpers.zerobased(shape)
+  array.ndim = #shape + 1
 
   if type(strides) == "table" then
      if strides[0] == nil then
@@ -353,13 +346,8 @@ end
 Array.__to_gff = function(self)
     local copy = self:copy() -- densify array
     local temps = ffi.string(copy.data, copy.size * self.dtype_size[self.dtype]) -- create string view
-    -- create temporary 1-based shape
-    local shape = {}
-    for i=0,#self.shape do
-        shape[i+1] = self.shape[i]
-    end
 
-    local settings = { shape = shape, size = self.size, dtype = self.dtype_string[self.dtype] }
+    local settings = { shape = helpers.onebased(self.shape), size = self.size, dtype = self.dtype_string[self.dtype] }
     return temps, settings
 end
 
@@ -367,7 +355,12 @@ Array.__gff_type = function(self)
     return "array"
 end
 
-local success, gff = pcall(require("gff"))
+local success, gff = pcall(function() 
+    require("luarocks.loader")
+    local gff = require("gff")
+    return gff
+end)
+
 if success then
     gff.register_type("array", function(s, settings, name, file)
         local array = Array.create(settings.shape, settings.dtype)

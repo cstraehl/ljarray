@@ -58,14 +58,25 @@ benchmark = function(f, count, name)
 end
 
 zerobased = function(tbl)
-  local result = tbl
   if tbl[0] == nil then
-    result = {}
+    local result = {}
     for i=1,#tbl,1 do
       result[i-1] = tbl[i]
     end
+    return result
   end
-  return result
+  return tbl
+end
+
+onebased = function(tbl)
+  if tbl[0] ~= nil then
+    local result = {}
+    for i=1,#tbl+1,1 do
+      result[i] = tbl[i-1]
+    end
+    return result
+  end
+  return tbl
 end
 
 binmap = function(func, tbl1, tbl2)
@@ -88,7 +99,6 @@ copy = function(tbl)
   local newtbl = {}
   local start = 0
   local stop = #tbl
-  assert(tbl[0] ~= nil)
   if tbl[0] == nil then
     start = 1
     stop = #tbl 

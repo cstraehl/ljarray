@@ -317,7 +317,7 @@ function Array.mapBinaryInplace(self,other,f, call_with_position)
   local offset_a = 0
   local offset_b = 0
   assert(self.ndim == other.ndim)
-  assert(self.size == other.size)
+  assert(self.size == other.size, string.format("%d, %d", self.size, other.size))
 
   -- performance optimization for singleton dimensions
   local singletons = 0
@@ -626,6 +626,7 @@ function Array.assign(self,data)
     _assign_constant_value = data
     self:mapInplace( _assign_constant )
   end
+  return self
 end
 
 
