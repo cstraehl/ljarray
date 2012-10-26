@@ -763,7 +763,7 @@ function Array.permute(self)
   return self
 end
 
-function Array.resize(self,shape)
+function Array.resize(self,shape, init)
 -- resizes an array to a new shape.
 --
 -- number of dimensions must be the same.
@@ -775,6 +775,11 @@ function Array.resize(self,shape)
 
   -- create new array with correct shape
   local new = Array.create(shape,self.dtype)
+  
+  if init ~= nil then
+    new:assign(init)
+  end
+
   -- determine intersection
   local intersection = {}
   for i = 0,ndim-1 do
@@ -792,6 +797,7 @@ function Array.resize(self,shape)
   self.shape = new.shape
   self.strides = new.strides
   self.data = new.data
+  self.size = new.size
   
   return self
 end
