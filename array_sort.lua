@@ -160,7 +160,7 @@ end
 
 
 Array.sort = function(self, axis, comp, starti, stopi)
--- Return a sorted copy of an array.
+-- sort the array inplace
 -- 
 -- Parameters :	
 -- axis : int or nil, optional
@@ -216,6 +216,7 @@ Array.sort = function(self, axis, comp, starti, stopi)
       line:assign(line2)
     end
   end
+  return self
 end
 
 local _swapper = function(indices, a,b)
