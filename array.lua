@@ -18,6 +18,7 @@ Array.__index = Array
 
 -- load additional functionality
 require("array_base")
+require("array_iterators")
 require("array_math")
 require("array_sort")
 require("array_types")

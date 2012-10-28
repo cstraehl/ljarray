@@ -1,6 +1,8 @@
 local array = require("array")
+local helpers = require("helpers")
+local operator = helpers.operator
 
-test_shape = {100,3,6}
+test_shape = {100,5,6}
 
 -- test copy to fortran order
 ta = array.create(test_shape, array.int32)
@@ -31,6 +33,36 @@ for pos in ta:coordinates() do
   ta:setPos(pos,0)
 end
 assert(ta:eq(0):all())
+
+-- test array.coordinates iterator
+ta = array.create(test_shape, array.int32)
+ta:assign(0)
+for pos in ta:pairs() do
+    ta:setPos(pos, ta:getPos(pos) + 1)
+end
+assert(ta:eq(1):all())
+
+-- test array.pairs iterator
+ta = array.create(test_shape, array.int32)
+ta:assign(0)
+for pos, val in ta:pairs() do
+    ta:setPos(pos, ta:getPos(pos) + 1)
+end
+assert(ta:eq(1):all())
+
+-- test array.values iterator
+ta = array.create(test_shape, array.int32)
+for pos, val in ta:pairs() do
+    ta:setPos(pos, 1)
+end
+local sum = 0
+for val in ta:values() do
+    assert(val == 1)
+    sum = sum + val
+end
+local should =  helpers.reduce(operator.mul, ta.shape, 1)
+assert(sum == should, string.format("%d vs %d", sum,should))
+
 
 -- test array.where number, number
 ta = array.create(test_shape, array.int32)
