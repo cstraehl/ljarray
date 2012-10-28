@@ -646,8 +646,13 @@ function Array.set4(self, i,j,k,l, val)
   self.data[i*self.strides[0] + j*self.strides[1] + k*self.strides[2] + l*self.strides[3]] = val
 end
 
-function Array.setN(self,val, ...)
-  self:setPosN(...,val)
+function Array.setN(self, ...)
+  local offset = 0
+  local pos = {...}
+  for d = 0, self.ndim - 1 do
+      offset = offset + self.strides[d]*pos[d+1]
+  end
+  self.data[offset] = pos[#pos]
 end
 
 function Array.setPos1(self, pos, val)
@@ -667,9 +672,11 @@ function Array.setPos4(self, pos, val)
 end
 
 function Array.setPosN(self, pos, val)
-  -- TODO: slooow
-  local offset = helpers.reduce(operator.add, helpers.binmap(operator.mul, pos, self.strides), 0)
-  self.data[offset] = val
+  local offset = 0
+  for d = 0, self.ndim-1 do
+      offset = offset + self.strides[d]*pos[d]
+  end
+  self.data[offset] = val             
 end
 
 function Array.fixMethodsDim(self)
@@ -694,7 +701,7 @@ function Array.fixMethodsDim(self)
   elseif self.ndim == 4 then
     self.get = Array.get4
     self.getPos = Array.getPos4
-    self.set = Array.setN
+    self.set = Array.set4
     self.setPos = Array.setPos4
   else
     -- TODO: these methods are SLOOOW!
