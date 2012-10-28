@@ -171,17 +171,62 @@ end
 
 local _lookup_lut
 local _lookup = function(a,b)
-  return _lookup_lut.data[b]
+  return _lookup_lut:get(b)
 end
 
-function Array.lookup(self,lut, order)
--- lookup values in table based on array element values
+---- lookup values/subarrays in array lut based on array element values
 --
--- required
---  lut : the lookup table to be used
-  local result = Array.create(self.shape, lut.dtype, order)
-  _lookup_lut = lut
-  result:mapBinaryInplace( self, _lookup)
+-- @param lut the lookup table to be used
+--        if the lut is not a vector but a more-dimensional array
+-- @param axis optional, if lut is multi-dimensional determines
+--        along which axis the the lut is sliced into the result
+-- @returns array
+--        the result array will have self.ndim+lut.ndim-1 dimensions
+--        for each value and coordinate in self, the result will hold
+--        the lut:bind(axis,value) subarray.
+--
+function Array.lookup(self,lut, axis)
+  local shape = helpers.copy(self.shape)
+  local small_shape = {}
+  local small_shape_offset = 0
+  axis = axis or 0
+  for d = 0, lut.ndim-1,1 do
+    if d ~= axis then
+        table.insert(shape, lut.shape[d])
+        small_shape[d - small_shape_offset] = lut.shape[d]
+    else
+        small_shape_offset = 1
+    end
+  end
+
+  local result = Array.create(shape, lut.dtype)
+  
+  if lut.ndim == 1 then
+    _lookup_lut = lut
+    result:mapBinaryInplace(self, _lookup)
+  else
+      local result_dim_offset = self.ndim
+      local lut_other = lut:bind(axis, 0)
+
+      for pos, val in lut_other:pairs() do
+          local t_result = result
+          local t_lut = lut
+          for d = 0, lut_other.ndim-1,1 do
+              t_result = t_result:bind(result_dim_offset, pos[d])
+              if d >= axis then
+                t_lut = t_lut:bind(1,pos[d])
+              else
+                t_lut = t_lut:bind(0,pos[d])
+              end
+          end
+          assert(t_result.ndim == result_dim_offset)
+          assert(t_lut.ndim == 1)
+          local temp = self:lookup(t_lut)
+          assert(temp.ndim == t_result.ndim)
+          t_result:assign(temp)
+      end
+  end
+
   return result
 end
 

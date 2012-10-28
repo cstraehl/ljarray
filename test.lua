@@ -155,13 +155,32 @@ assert(ta:le(tb):all())
 -- test array lookup(lut)
 ta:assign(0)
 ta:set(3,3,3, 1)
+assert(ta:get(3,3,3) == 1)
 local lut = array.create({10}, array.uint8)
-lut:set(0,0)
-lut:set(1,1)
+lut:assign(0)
+lut:set(1,7)
 local result = ta:lookup(lut)
-assert(result:get(3,3,3) == 1)
+assert(result.dtype == array.uint8)
+assert(result:get(3,3,3) == 7)
 result:set(3,3,3,0)
 assert(result:eq(0):all())
+
+
+
+-- test array lookup(lut) multidimensional
+ta:assign(0)
+for v in ta:values() do
+    assert(v == 0)
+end
+ta:set(3,3,3, 1)
+local lut = array.zeros({10,5}, array.int32)
+lut:set(1,3,7)
+local result = ta:lookup(lut)
+assert(result.ndim == 4)
+assert(result:get(3,3,3,3) == 7)
+result:set(3,3,3,3,0)
+assert(result:eq(0):all())
+
 
 
 -- test array arange
