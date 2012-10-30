@@ -181,7 +181,16 @@ assert(result:get(3,3,3,3) == 7)
 result:set(3,3,3,3,0)
 assert(result:eq(0):all())
 
-
+-- test array.concatenate
+ta = array.create({10,20}, array.int32)
+tb = array.create({20,20}, array.int32)
+ta:assign(0)
+tb:assign(1)
+local result = array.concatenate({ta,tb},0)
+assert(result.shape[0] == 30)
+assert(result:sum() == 20*20)
+assert(result:bind(0,0,10):eq(0):all())
+assert(result:bind(0,10,30):eq(1):all())
 
 -- test array arange
 local t = array.arange(7,11,2)

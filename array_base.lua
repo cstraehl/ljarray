@@ -386,6 +386,41 @@ function Array.resize(self,shape, init)
   return self
 end
 
+--- concatenates a table of arrays along a given axis
+-- 
+-- @param arrays a table of arrays
+-- @param axis optional, default = 0, the axis along which to stack
+-- @returns array the stacked array
+Array.concatenate = function(arrays, axis)
+    axis = axis or 0
+    local shape = helpers.copy(arrays[1].shape)
+    local ndim = arrays[1].ndim
+    local dtype = arrays[1].dtype
+    local length = 0
+    for i,a in ipairs(arrays) do
+        for d = 0, ndim-1 do
+            if d ~= axis then
+                assert(a.ndim == ndim, "Array.concatenate: all arrays must be of same dimension!")
+                assert(a.shape[d] == shape[d], "Array.concatenate: all arrays must be of same shape")
+            end
+        end
+        length = length + a.shape[axis]
+    end
+
+    shape[axis] = length
+
+    local result = Array.create(shape, dtype)
+    local start = 0
+    for i,a in ipairs(arrays) do
+        local stop = start + a.shape[axis]
+        local result_view = result:bind(axis, start, stop)
+        result_view:assign(a)
+        start = start + a.shape[axis]
+    end
+    
+    return result
+end
+
 --
 --
 -- Dimensionality-specialized getter and setter functions
