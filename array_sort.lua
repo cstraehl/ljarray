@@ -108,9 +108,10 @@ end
   -- local pivot = med9(t, start, endi, comp)
 
   swap(swaparg, start, pivot)
-  local temp = t.data[start]
-  t.data[start] = t.data[pivot]
-  t.data[pivot] = temp
+  local data = t.data
+  local temp = data[start]
+  data[start] = data[pivot]
+  data[pivot] = temp
 
   local  i = start
   local  j = endi+1
@@ -118,23 +119,23 @@ end
   while true do
     repeat
       i = i + 1
-    until not (comp(t.data[i],t.data[start]) and i <= endi)
+    until not (comp(data[i],data[start]) and i <= endi)
     repeat
       j = j - 1
-    until not comp(t.data[start], t.data[j])
+    until not comp(data[start], data[j])
     if j < i then    
       break
     end
     swap(swaparg, i, j)
-    temp = t.data[i]
-    t.data[i] = t.data[j]
-    t.data[j] = temp
+    temp = data[i]
+    data[i] = data[j]
+    data[j] = temp
   end
   pivot = j
   swap(swaparg,start, pivot)
-  temp = t.data[start]
-  t.data[start] = t.data[pivot]
-  t.data[pivot] = temp
+  temp = data[start]
+  data[start] = data[pivot]
+  data[pivot] = temp
 
   -- recurse using tail call optimization
   if pivot - start < endi - i then
