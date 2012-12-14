@@ -11,66 +11,48 @@ local isarray = helpers.isarray
 
 
 -- insertion sort helper - used by quicksort_impl for small ranges
-local function inssort(v, low, high, comp, swap, swaparg)
-  for i = low+1, high do
-    local elt = v.data[i]
-    if comp(elt,v.data[low]) then
-      for j = i-1, low, -1 do v.data[j+1] = v.data[j]; swap(swaparg,j,j+1); end
-      v.data[low] = elt
+local function inssort(v, low, high, swap, swaparg)
+  for i = low+1, high,1 do
+    local elt = v[i]
+    if elt<v[low] then
+      for j = i-1, low, -1 do
+          v[j+1] = v[j]
+          swap(swaparg,j,j+1)
+      end
+      v[low] = elt
     else
       local j = i-1
-      while comp(elt,v.data[j]) do v.data[j+1] = v.data[j]; swap(swaparg,j,j+1); j = j - 1 end
-      v.data[j+1] = elt
+      while elt<v[j] do
+          v[j+1] = v[j]
+          swap(swaparg,j,j+1)
+          j = j - 1
+      end
+      v[j+1] = elt
     end
   end
-  return nil, high, low
 end
 
--- local function inssort(v, low, high, comp, swap, swaparg)
---   for i = low, high do
---     local idx = i
---     for j = i+1, high do
---       if comp(v.data[j], v.data[idx]) then
---         idx = j
---       end
---     end
---     if idx ~= i then
---       local temp = v.data[idx]
---       v.data[idx] = v.data[i]
---       v.data[i] = temp
---       swap(swaparg, idx, i)
---     end
---   end
---   return nil, high, low
--- end
-
-
-
--- default comparison function
-local _default_comp = function(a,b)
-  return a < b
-end
 
 -- default empty swap function
 local _default_swap = function(i1,i2)
 end
 
-local med3 = function(t, a,b,c, comp)
-  if comp(t.data[a], t.data[b]) then
-    if comp(t.data[b], t.data[c]) then
+local med3 = function(t, a,b,c)
+  if (t[a]< t[b]) then
+    if (t[b]< t[c]) then
       return b
     else
-      if comp(t.data[a], t.data[c]) then
+      if (t[a]< t[c]) then
         return c
       else
         return a
       end
     end
   else
-    if comp(t.data[a], t.data[c]) then
+    if (t[a]< t[c]) then
       return a 
     else
-      if comp(t.data[b], t.data[c]) then
+      if (t[b]< t[c]) then
         return c
       else
         return b
@@ -94,24 +76,21 @@ end
 
  --in-place quicksort
  local quicksort_impl
- quicksort_impl = function(t, comp,swap,start, endi, swaparg)
+ quicksort_impl = function(data, swap,start, endi, swaparg)
    local n = endi - start
-   if n < 40 then
-     inssort(t,start,endi, comp, swap, swaparg)
-     return t
+   if n < 32 then
+     return
    end
 
-  -- random pivot choice
-  -- local pivot = math.random(start,endi)
-  local mid = start + bitop.rshift(endi-start,1)
-  local pivot = med3(t, start, mid, endi, comp)
+  -- local mid = start + bitop.rshift(endi-start,1)
+  -- local pivot = med3(t, start, mid, endi, comp)
   -- local pivot = med9(t, start, endi, comp)
+  -- local pivot = start + bitop.rshift(endi-start,1)
+  local pivot = math.random(start,endi)
+  --pivot = med3(data, start, pivot, endi)
 
   swap(swaparg, start, pivot)
-  local data = t.data
-  local temp = data[start]
-  data[start] = data[pivot]
-  data[pivot] = temp
+  swap(data, start, pivot)
 
   local  i = start
   local  j = endi+1
@@ -119,44 +98,231 @@ end
   while true do
     repeat
       i = i + 1
-    until not (comp(data[i],data[start]) and i <= endi)
+    until not (data[i]<data[start] and i < endi)
     repeat
       j = j - 1
-    until not comp(data[start], data[j])
-    if j < i then    
+    until not (data[start]< data[j])
+    if j <= i then    
       break
     end
     swap(swaparg, i, j)
-    temp = data[i]
-    data[i] = data[j]
-    data[j] = temp
+    swap(data, i, j)
   end
   pivot = j
   swap(swaparg,start, pivot)
-  temp = data[start]
-  data[start] = data[pivot]
-  data[pivot] = temp
+  swap(data,start, pivot)
 
+  quicksort_impl(data,swap,start, pivot -1, swaparg)
+  quicksort_impl(data,swap,i , endi, swaparg)
   -- recurse using tail call optimization
-  if pivot - start < endi - i then
-    quicksort_impl(t,comp,swap,start, pivot -1, swaparg)
-    return quicksort_impl(t,comp,swap,i , endi, swaparg)
-  else
-    quicksort_impl(t,comp,swap,i, endi, swaparg)
-    return quicksort_impl(t,comp,swap,start, pivot-1 , swaparg)
-  end
+  -- if pivot - start < endi - i then
+  --   quicksort_impl(data,swap,start, pivot -1, swaparg)
+  --   quicksort_impl(data,swap,i , endi, swaparg)
+  -- else
+  --   quicksort_impl(data,swap,i, endi, swaparg)
+  --   quicksort_impl(data,swap,start, pivot-1 , swaparg)
+  -- end
 end
 
 -- quicksort helper
-local quicksort = function(t,comp,swap,swaparg, start, stop)
+local quicksort = function(t,swap,swaparg, start, stop)
   assert(t.ndim == 1) --, "quicksort only works for dense 1-d arrays - ndim: " .. t.ndim)
   assert(t.strides[0] == 1) --, "quicksort only works for dense 1-d arrays - strides[0]: " .. t.strides[0])
 
-  swap = swap or _default_swap
-  comp = comp or _default_comp
   start = start or 0
   stop = stop or t.shape[0]-1
-  quicksort_impl(t,comp, swap, start,stop, swaparg)
+  quicksort_impl(t.data, swap, start,stop, swaparg)
+  inssort(t.data,start,stop, swap, swaparg)
+end
+
+
+local floatflip = function(f)
+    local mask = bitop.bor(-bitop.rshift(f, 31),0x80000000)  
+    return bitop.bxor(f, mask)
+end
+
+local ifloatflip = function(f)
+    local mask = bitop.bor(bitop.rshift(f, 31) - 1,0x80000000)  
+    return bitop.bxor(f, mask)
+end
+
+local _0 = function(x)
+    return bitop.band(x, 0x7ff)
+end
+
+local _1 = function(x)
+    return bitop.band(bitop.rshift(x,11), 0x7ff)
+end
+
+local _2 = function(x)
+    return bitop.rshift(x,22)
+end
+
+local _radix_bins_t = ffi.typeof("int[6144]")
+
+local radixsort = function(t, start, stop)
+  assert(t.ndim == 1)
+  assert(t.strides[0] == 1)
+  start = start or 0
+  stop = stop or t.shape[0]-1
+    
+  local temp1 = Array.create({t.shape[0]}, Array.int32)
+  local temp2 = Array.create({t.shape[0]}, Array.int32)
+  local data = ffi.cast("int32_t*", t.data)
+
+  local b0 = _radix_bins_t()
+  local b1 = b0 + 2048
+  local b2 = b1 + 2048
+  
+  for i = 0, 3*2048-1, 1 do
+      b0[i] = 0
+  end
+  
+  -- count bins
+  for i = start, stop, 1 do
+    local fi = floatflip(data[i])
+    local o = _0(fi)
+    b0[o] = b0[o] + 1
+    o = _1(fi)
+    b1[o] = b1[o] + 1
+    o = _2(fi)
+    b2[o] = b2[o] + 1
+  end
+
+  local sum0  = 0
+  local sum1  = 0
+  local sum2  = 0
+  local tsum = 0
+  for i = 0, 2047, 1 do
+      tsum = b0[i] + sum0
+      b0[i] = sum0 - 1
+      sum0 = tsum
+
+      tsum = b1[i] + sum1
+      b1[i] = sum1 - 1
+      sum1 = tsum
+
+      tsum = b2[i] + sum2
+      b2[i] = sum2 - 1
+      sum2 = tsum
+  end
+
+  -- adapt offsets
+  for i = 0, 3*2048-1, 1 do
+      b0[i] = b0[i]+start
+  end
+
+  -- sort into bins
+  local tdata1 = temp1.data
+  for i = start, stop, 1 do
+      local fi = floatflip(data[i])
+      local pos = _0(fi)
+      b0[pos] = b0[pos] + 1
+      tdata1[b0[pos]] = fi
+  end
+
+  local tdata2 = temp2.data
+  for i = start, stop, 1 do
+      local ti = tdata1[i]
+      local pos = _1(ti)
+      b1[pos] = b1[pos] + 1
+      tdata2[b1[pos]] = ti
+  end
+
+  for i = start, stop, 1 do
+      local ti = tdata2[i]
+      local pos = _2(ti)
+      b2[pos] = b2[pos] + 1
+      data[b2[pos]] = ifloatflip(ti)
+  end
+  
+end
+
+local radixargsort = function(t, indices, start, stop)
+  assert(t.ndim == 1)
+  assert(t.strides[0] == 1)
+  start = start or 0
+  stop = stop or t.shape[0]-1
+    
+  local temp1 = Array.create({t.shape[0]}, Array.int32)
+  local temp2 = Array.create({t.shape[0]}, Array.int32)
+  local tind = Array.create({t.shape[0]}, Array.int32)
+
+  local data = ffi.cast("int32_t*", t.data)
+
+  local b0 = _radix_bins_t()
+  local b1 = b0 + 2048
+  local b2 = b1 + 2048
+  
+  for i = 0, 3*2048-1, 1 do
+      b0[i] = 0
+  end
+  
+  -- count bins
+  for i = start, stop, 1 do
+    local fi = floatflip(data[i])
+    local o = _0(fi)
+    b0[o] = b0[o] + 1
+    o = _1(fi)
+    b1[o] = b1[o] + 1
+    o = _2(fi)
+    b2[o] = b2[o] + 1
+  end
+
+  local sum0  = 0
+  local sum1  = 0
+  local sum2  = 0
+  local tsum = 0
+  for i = 0, 2047, 1 do
+      tsum = b0[i] + sum0
+      b0[i] = sum0 - 1
+      sum0 = tsum
+
+      tsum = b1[i] + sum1
+      b1[i] = sum1 - 1
+      sum1 = tsum
+
+      tsum = b2[i] + sum2
+      b2[i] = sum2 - 1
+      sum2 = tsum
+  end
+
+  -- adapt offsets
+  for i = 0, 3*2048-1, 1 do
+      b0[i] = b0[i]+start
+  end
+
+  -- sort into bins
+  local tdata1 = temp1.data
+  for i = start, stop, 1 do
+      local fi = floatflip(data[i])
+      local pos = _0(fi)
+      b0[pos] = b0[pos] + 1
+      tdata1[b0[pos]] = fi
+      tind.data[b0[pos]] = indices.data[i]
+  end
+
+  local tdata2 = temp2.data
+  for i = start, stop, 1 do
+      local ti = tdata1[i]
+      local pos = _1(ti)
+      b1[pos] = b1[pos] + 1
+      tdata2[b1[pos]] = ti
+      indices.data[b1[pos]] = tind.data[i]
+  end
+
+
+  for i = start, stop, 1 do
+      local ti = tdata2[i]
+      local pos = _2(ti)
+      b2[pos] = b2[pos] + 1
+      data[b2[pos]] = ifloatflip(ti)
+      tind.data[b2[pos]] = indices.data[i]
+  end
+  
+  for i = start, stop, 1 do
+      indices.data[i] = tind.data[i]
+  end
 end
 
 
@@ -208,9 +374,14 @@ Array.sort = function(self, axis, comp, starti, stopi)
       line2 = Array.create({self.shape[axis]},self.dtype)
       line2:assign(line)
     end
+  
     
     -- finally, sort!
-    quicksort(line2,comp,nil, nil, starti, stopi)
+    if line2.dtype == Array.float32 and line2.strides[0] == 1 and stopi - starti > 2048 then
+        radixsort(line2, starti, stopi)
+    else
+        quicksort(line2,_default_swap, nil, starti, stopi)
+    end
     
     -- copy back
     if line2 ~= line then
@@ -220,10 +391,10 @@ Array.sort = function(self, axis, comp, starti, stopi)
   return self
 end
 
-local _swapper = function(indices, a,b)
-  local temp = indices.data[a]
-  indices.data[a] = indices.data[b]
-  indices.data[b] = temp
+local _swapper = function(data, a,b)
+  local temp = data[a]
+  data[a] = data[b]
+  data[b] = temp
 end
 
 Array.argsort = function(self, axis, comp, start, stop, out, inplace)
@@ -263,8 +434,11 @@ Array.argsort = function(self, axis, comp, start, stop, out, inplace)
     indices = Array.arange(0,self.shape[0])
   end
 
-
-  quicksort(copy,comp,_swapper, indices, start, stop)
+  if copy.dtype == Array.float32 and copy.strides[0] == 1 and stop - start > 2048 then
+     radixargsort(copy, indices, start, stop)
+  else
+    quicksort(copy,_swapper, indices.data, start, stop)
+  end
 
   local result  = {}
   result[1] = indices

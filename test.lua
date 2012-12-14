@@ -230,10 +230,24 @@ local info = log.unindent()
 log.print_runtime(info)
 
 
--- test array sort
+-- test array sort integer
 local t = array.randint(4,10000,{1000})
 t:sort()
 for i=0,t.shape[0]-2 do
+  assert(t.data[i] <= t.data[i+1], "sorting failed at index " .. i .. ":" .. t.data[i] .." is not <= " .. t.data[i+1])
+end
+
+-- test array sort float
+local t = array.rand({1000})
+t:sort()
+for i=0,t.shape[0]-2 do
+  assert(t.data[i] <= t.data[i+1], "sorting failed at index " .. i .. ":" .. t.data[i] .." is not <= " .. t.data[i+1])
+end
+
+-- test array sort float
+local t = array.rand({1000})
+t:sort(nil,nil,100,200)
+for i=100,200-2 do
   assert(t.data[i] <= t.data[i+1], "sorting failed at index " .. i .. ":" .. t.data[i] .." is not <= " .. t.data[i+1])
 end
 
@@ -249,12 +263,12 @@ for pos in v:coordinates() do
 end
 
 -- test array argsort
-local t = array.randint(4,10000,{100})
+local t = array.rand({100})
 t.data[77] = 99999 -- watermark t before argsort
-local coordinates = t:argsort()
+local coordinates = t:argsort(nil,nil,10,90)
 assert(t.data[77] == 99999) -- test t is still unssorted
 t = t:getCoordinates(coordinates)
-for i=0,t.shape[0]-2 do
+for i=10,90-2 do
   assert(t.data[i] <= t.data[i+1], "sorting failed at index " .. i .. ":" .. t.data[i] .." is not <= " .. t.data[i+1])
 end
 

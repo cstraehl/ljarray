@@ -21,6 +21,11 @@ helpers.benchmark(function()
   helpers.benchmark(function()  rand:sort() end, 1, "sort 1000000 integers")
   local rand = narray.randint(0,100000,{1000000})
   helpers.benchmark(function()  rand:argsort() end, 1, "argsort 1000000 integers")
+  
+  local rand = narray.rand({1000000})
+  helpers.benchmark(function()  rand:sort() end, 1, "sort 1000000 floats")
+  local rand = narray.rand({1000000})
+  helpers.benchmark(function()  rand:argsort() end, 1, "argsort 1000000 floats")
 
   helpers.benchmark(function()  local blubb = narray.create(bshape, btype) end, bcount, "allocate array")
   helpers.benchmark(function()  ta:add(3) end, bcount, "add constant")
