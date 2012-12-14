@@ -24,7 +24,7 @@ require("array_math")
 require("array_sort")
 require("array_types")
 
-
+local stride_type = ffi.typeof("int32_t [4]")
 
 -- create array from existing data pointer
 --
@@ -50,65 +50,66 @@ function Array.fromData(ptr, dtype, shape, strides, source)
   array.data = ptr
   array.memory = tonumber(ffi.cast("int", array.data))  
   array.dtype = dtype
-  assert(dtype ~= nil)
-  array.str_dtype = tostring(array.element_type)
+  array.dtype_str = array.dtype_string[dtype]
   
   shape = helpers.zerobased(shape)
   array.ndim = #shape + 1
+  
+  -- if array.ndim <= 4 then
+  --   array.strides = ffi.new(stride_type)
+  -- else
+  --   ffi.new("int [" .. array.ndim .."]")
+  -- end
+  array.strides = helpers.zeros(array.ndim)
 
   if type(strides) == "table" then
-     if strides[0] == nil then
-      local newstrides = {}
-      -- 1 based strides
-      for i = 1, array.ndim, 1 do
-        newstrides[i-1] = strides[i]
-      end
-      strides = newstrides
+    local offset = 0
+    if strides[0] == nil then
+      offset = 1
     end
-    array.strides = strides
+    for i = 0, array.ndim-1, 1 do
+      array.strides[i] = strides[i+offset]
+    end
     if array.ndim == 1 then
       array.order = "c" -- default is c order
     else
-      if strides[1] > strides[0] then
+      if array.strides[1] > array.strides[0] then
         array.order = "f"
       else
         array.order = "c"
       end
-    assert(#array.strides == #shape)
     end
   elseif strides == "f" then
     array.order = "f"
-    array.strides = {} 
     array.strides[0] = 1
     for i = 1,array.ndim-1,1 do
       array.strides[i] = shape[i-1] * array.strides[i-1]
     end
-    assert(#array.strides == #shape)
-  elseif strides == "c" or not strides then
+  elseif strides == "c" or strides == nil then
     array.order = "c"
-    local strides = {} 
-    strides[array.ndim-1] = 1
+    array.strides[array.ndim-1] = 1
     for i = array.ndim-2,0,-1 do
-      strides[i] = shape[i+1] * strides[i+1]
+      array.strides[i] = shape[i+1] * array.strides[i+1]
     end
-    array.strides = strides
-    assert(#(array.strides) == #shape)
+  elseif type(strides) == "cdata" then
+    for i = 0,array.ndim-1,1 do
+        array.strides[i] = strides[i]
+    end
   end
   array.shape = shape
   array.base_data = source or array.data
+  
   -- calculate size (number of elements)
   array.size = helpers.reduce(operator.mul, shape, 1)
   array:fixMethodsDim()
-
-  assert(#array.shape == #array.strides)
-  assert(array.shape[0] ~= nil)
-  assert(array.strides[0] ~= nil)
-
 
   return array
 end
 
 
+local _free = function(p)
+    ffi.C.free(p)
+end
 
 function Array.create(shape, dtype, order)
 -- allocate uninitialized array from shape and VLA ffi dtype
@@ -143,7 +144,7 @@ function Array.create(shape, dtype, order)
    local data = ffi.C.malloc(size * Array.dtype_size[dtype])
    assert(not (data == nil), "LJARRY ALLOCATION ERROR: OUT OF MEMORY")
    data = ffi.cast(Array.dtype_pointer[dtype], data) 
-   ffi.gc(data, ffi.C.free)
+   ffi.gc(data, _free)
   
    return Array.fromData(data,dtype,shape,order)
 end
@@ -196,8 +197,9 @@ function Array.randint(low,high,shape, dtype)
     dtype = Array.int32
   end
   local array = Array.create(shape, dtype)
+  local diff = high - low
   for pos in array:coordinates() do
-    array:setPos(pos, math.floor(math.random()*(high-0.1 - low) +low))
+    array:setPos(pos, math.floor(math.random()*diff +low))
   end
   return array
 end
@@ -293,20 +295,16 @@ function Array.bind(self,dimension, start, stop)
   assert(dimension ~= nil, "array.bind: dimension is nil")
   assert(start ~= nil, "array.bind: start index is nil")
   assert(dimension < self.ndim, "array.bind: dimension larger then array dimension.")
-  assert(self.shape[dimension] >= start, "array.bind: start index larger then shape")
+  assert(self.shape[dimension] > start, "array.bind: start index larger then shape")
   if stop then
     assert(self.shape[dimension] >= stop)
-  assert(start<=stop)
+    assert(start<=stop)
   end
-  local data = self.data + self.strides[dimension]*(start)
+  local data = self.data + self.strides[dimension]*start
   local shape = {}
   local strides = {}
   if stop and stop ~= start then
-    for i=0,dimension-1,1 do
-      strides[i] = self.strides[i]
-      shape[i] = self.shape[i]
-    end
-    for i=dimension,self.ndim-1,1 do
+    for i=0,self.ndim-1,1 do
       strides[i] = self.strides[i]
       shape[i] = self.shape[i]
     end
@@ -321,7 +319,11 @@ function Array.bind(self,dimension, start, stop)
       shape[i-1] = self.shape[i]
     end
   end
-  return Array.fromData(data,self.dtype, shape, strides, self.base_data)
+  if shape[0] == nil then
+      return nil
+  else
+    return Array.fromData(data,self.dtype, shape, strides, self.base_data)
+  end
 end
 
 
