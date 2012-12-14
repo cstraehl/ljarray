@@ -334,7 +334,7 @@ end
 function Array.permute(self)
 -- permute the array elements
 --  
-  local dest = helpers.zeros(self.ndim)
+  local dest = {}
 
   for pos in self:coordinates() do
     for i = 0, self.ndim -1 do

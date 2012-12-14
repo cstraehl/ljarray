@@ -81,10 +81,12 @@ local _eq_constant = function(a,b)
   end
 end
 
+local _eq = function(a,b,c) if b == c then return 1 else return 0 end end
+
 function Array.eq(self,other, order)
   local result = Array.create(self.shape, Array.int8, order)
   if isarray(other) then
-    result:mapTenaryInplace(self, other, function(a,b,c) if b == c then return 1 else return 0 end end)
+    result:mapTenaryInplace(self, other, _eq)
   else
     _eq_constant_value = ffi.cast(self.dtype, other)
     result:mapBinaryInplace(self, _eq_constant)
@@ -102,10 +104,12 @@ local _neq_constant = function(a,b)
   end
 end
 
+local _neq = function(a,b,c) if b == c then return 0 else return 1 end end
+
 function Array.neq(self,other, order)
   local result = Array.create(self.shape, Array.int8, order)
   if isarray(other) then
-    result:mapTenaryInplace(self, other, function(a,b,c) if b == c then return 0 else return 1 end end)
+    result:mapTenaryInplace(self, other, _neq)
   else
     _neq_constant_value = ffi.cast(self.dtype, other)
     result:mapBinaryInplace(self, _neq_constant)
@@ -123,10 +127,12 @@ local _gt_constant = function(a,b)
   end
 end
 
+local _gt = function(a,b,c) if b > c then return 1 else return 0 end end
+
 function Array.gt(self,other, order)
   local result = Array.create(self.shape, Array.int8, order)
   if isarray(other) then
-    result:mapTenaryInplace(self, other, function(a,b,c) if b > c then return 1 else return 0 end end)
+    result:mapTenaryInplace(self, other, _gt)
   else
     _gt_constant_value = ffi.cast(self.dtype, other)
     result:mapBinaryInplace(self, _gt_constant)
@@ -144,10 +150,12 @@ local _ge_constant = function(a,b)
   end
 end
 
+local _ge = function(a,b,c) if b >= c then return 1 else return 0 end end
+
 function Array.ge(self,other, order)
   local result = Array.create(self.shape, Array.int8, order)
   if isarray(other) then
-    result:mapTenaryInplace(self, other, function(a,b,c) if b >= c then return 1 else return 0 end end)
+    result:mapTenaryInplace(self, other, _ge)
   else
     _ge_constant_value = ffi.cast(self.dtype, other)
     result:mapBinaryInplace(self, _ge_constant)
@@ -165,10 +173,12 @@ local _lt_constant = function(a,b)
   end
 end
 
+local _lt = function(a,b,c) if b < c then return 1 else return 0 end end
+
 function Array.lt(self,other, order)
   local result = Array.create(self.shape, Array.int8, order)
   if isarray(other) then
-    result:mapTenaryInplace(self, other, function(a,b,c) if b < c then return 1 else return 0 end end)
+    result:mapTenaryInplace(self, other, _lt)
   else
     _lt_constant_value = ffi.cast(self.dtype, other)
     result:mapBinaryInplace(self, _lt_constant)
@@ -179,17 +189,19 @@ end
 
 local _le_constant_value
 local _le_constant = function(a,b)
-  if b <= _re_constant_value then
+  if b <= _le_constant_value then
     return 1
   else
     return 0
   end
 end
 
+local _le = function(a,b,c) if b <= c then return 1 else return 0 end end
+
 function Array.le(self,other, order)
   local result = Array.create(self.shape, Array.int8, order)
   if isarray(other) then
-    result:mapTenaryInplace(self, other, function(a,b,c) if b <= c then return 1 else return 0 end end)
+    result:mapTenaryInplace(self, other, _le)
   else
     _le_constant_value = ffi.cast(self.dtype, other)
     result:mapBinaryInplace(self, _le_constant)
@@ -267,9 +279,14 @@ local _find_sum = function(a)
   return a
 end
 
---- get element of minimum value
+--- get sum of elements
 function Array.sum(self)
   _sum_result = 0
   self:mapInplace(_find_sum)
   return _sum_result
+end
+
+--- get average of elements
+function Array.avg(self)
+  return self:sum() / self.size
 end
