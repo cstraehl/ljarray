@@ -6,15 +6,30 @@ test_shape = {100,5,6}
 
 -- test copy to fortran order
 ta = array.create(test_shape, array.int32)
-tb = ta:copy("c")
-assert(tb.order == "c")
+tb = ta:copy("f")
+assert(tb.order == "f")
 assert(ta:eq(tb):all())
+assert(tb.carray == nil)
 
 -- test copy to c order
 ta = array.create(test_shape, array.int32, "f")
 tb = ta:copy("c")
 assert(tb.order == "c")
 assert(ta:eq(tb):all())
+assert(tb.carray ~= nil)
+
+-- test .carray property
+ta = array.zeros(test_shape, array.int32, "c")
+ta:set(7,3,4,11)
+assert(ta.carray[7][3][4] == 11, ta.carray[7][3][4])
+ta.carray[11][2][3] = 4
+assert(ta:get(11,2,3) == 4, ta:get(11,2,3))
+ta:assign(0)
+tb = ta:bind(1,1,3)
+tb:set(7,2,4,11)
+assert(tb.carray[7][2][4] == 11, tb.carray[7][2][4])
+assert(ta.carray[7][3][4] == 11, ta.carray[7][3][4])
+
 
 -- test copy to same order
 ta = array.create(test_shape, array.int32, "f")

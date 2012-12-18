@@ -98,7 +98,22 @@ function Array.fromData(ptr, dtype, shape, strides, source)
   end
   array.shape = shape
   array.base_data = source or array.data
+
+  -- construct .carray property for array.carray[i][j] access if possible
+  if array.order == "c" and array.strides[array.ndim-1] == 1 then
+      local nat_stride = 1
+      local types = ""
+      for d = array.ndim-1, 1, -1 do
+        nat_stride = nat_stride * array.shape[d]
+        types = string.format("[%d]%s",array.strides[d-1] / nat_stride * array.shape[d], types)
+      end
+      local types = array.dtype_str .. " (*)" .. types
+      local arr_t = Array._arr_types[types] or ffi.typeof(types)
+      Array._arr_types[types] = arr_t
+      array.carray = ffi.cast(arr_t, array.memory)
+  end
   
+
   -- calculate size (number of elements)
   array.size = helpers.reduce(operator.mul, shape, 1)
   array:fixMethodsDim()

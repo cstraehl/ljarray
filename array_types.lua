@@ -21,6 +21,7 @@ Array.dtype_vla = {}
 Array.dtype_pointer = {}
 Array.dtype_size = {}
 Array.dtype_string = {}
+Array._arr_types = {}
 
 Array.register_dtype = function(dts, dtype)
     if Array[dts] ~= nil then
