@@ -296,7 +296,17 @@ t:set(10,10,200)
 local r = t:max()
 assert(r == 200, r)
 
--- test max
+-- test min
 t:set(10,10,0)
 local r = t:min()
 assert(r == 0)
+
+
+-- test  shift
+local t = array.arange(0,10)
+t:shift(-1)
+assert(t:get(0) == 1)
+assert(t:get(9) == 0)
+t:shift(2)
+assert(t:get(0) == 9)
+assert(t:get(9) == 8)

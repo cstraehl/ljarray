@@ -290,3 +290,22 @@ end
 function Array.avg(self)
   return self:sum() / self.size
 end
+
+
+-- shift array by n elements
+function Array.shift(self, n)
+    assert(self.ndim == 1)
+    local copy = self:copy()
+
+    local target = n
+    if target < 0 then
+        target = self.shape[0] + target
+    end
+    for i = 0, self.shape[0]-1, 1 do
+        self:set(target, copy:get(i))
+        target = target + 1
+        if target == self.shape[0] then
+            target = 0
+        end
+    end
+end
