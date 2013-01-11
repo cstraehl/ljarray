@@ -310,3 +310,12 @@ assert(t:get(9) == 0)
 t:shift(2)
 assert(t:get(0) == 9)
 assert(t:get(9) == 8)
+
+-- test histogram
+local t = array.arange(0,10)
+local h = t:histogram()
+assert(h.shape[0] == 10)
+assert(h:eq(1):all())
+t.data[9] = 0
+local h = t:histogram()
+assert(h.data[0] == 2)

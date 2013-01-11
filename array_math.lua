@@ -292,7 +292,7 @@ function Array.avg(self)
 end
 
 
--- shift array by n elements
+--- shift array by n elements
 function Array.shift(self, n)
     assert(self.ndim == 1)
     local copy = self:copy()
@@ -308,4 +308,15 @@ function Array.shift(self, n)
             target = 0
         end
     end
+end
+
+--- count how often each value occurs in the data
+function Array.histogram(self)
+    local max = math.ceil(self:max())
+    local result = Array.zeros({max+1}, Array.int32)
+    for v in self:values() do
+        v = math.ceil(v)
+        result.data[v] = result.data[v] + 1
+    end
+    return result
 end
