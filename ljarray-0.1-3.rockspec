@@ -31,5 +31,7 @@ build = {
       ["ljarray.helpers"] = "helpers.lua",
       ["ljarray.benchmark"] = "benchmark.lua",
       ["ljarray.log"] = "log.lua",
+      ["ljarray.ds.splay_heap"] = "ds/splay_heap.lua",
+      ["ljarray.ds.splay_heap_raw"] = "ds/splay_heap_raw.lua",
    }
 }
