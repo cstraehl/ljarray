@@ -37,6 +37,13 @@ end
 local _default_swap = function(i1,i2)
 end
 
+local _swapper = function(data, a,b)
+  local temp = data[a]
+  data[a] = data[b]
+  data[b] = temp
+end
+
+
 local med3 = function(t, a,b,c)
   if (t[a]< t[b]) then
     if (t[b]< t[c]) then
@@ -77,8 +84,7 @@ end
  --in-place quicksort
  local quicksort_impl
  quicksort_impl = function(data, swap,start, endi, swaparg)
-   local n = endi - start
-   if n < 32 then
+   if endi - start < 32 then
      return
    end
 
@@ -86,40 +92,57 @@ end
   -- local pivot = med3(t, start, mid, endi, comp)
   -- local pivot = med9(t, start, endi, comp)
   -- local pivot = start + bitop.rshift(endi-start,1)
-  local pivot = math.random(start,endi)
   --pivot = med3(data, start, pivot, endi)
+  local pivot = math.random(start,endi)
+  local pv = data[pivot]
 
-  swap(swaparg, start, pivot)
-  swap(data, start, pivot)
+  swap(swaparg, endi, pivot)
+  _swapper(data, endi, pivot)
 
-  local  i = start
-  local  j = endi+1
-
-  while true do
-    repeat
-      i = i + 1
-    until not (data[i]<data[start] and i < endi)
-    repeat
-      j = j - 1
-    until not (data[start]< data[j])
-    if j <= i then    
-      break
-    end
-    swap(swaparg, i, j)
-    swap(data, i, j)
+  pivot = start
+  for i = start, endi-1, 1 do
+      if data[i] < pv then
+          swap(swaparg, pivot, i)
+          _swapper(data, pivot, i)
+          pivot = pivot + 1
+      end
   end
-  pivot = j
-  swap(swaparg,start, pivot)
-  swap(data,start, pivot)
+  swap(swaparg, endi, pivot)
+  _swapper(data, endi, pivot)
 
-  quicksort_impl(data,swap,start, pivot -1, swaparg)
-  quicksort_impl(data,swap,i , endi, swaparg)
-  -- recurse using tail call optimization
-  -- if pivot - start < endi - i then
+
+  -- swap(swaparg, start, pivot)
+  -- swap(data, start, pivot)
+
+  -- local  i = start
+  -- local  j = endi+1
+
+  -- while true do
+  --   repeat
+  --     i = i + 1
+  --   until not (data[i]<data[start] and i <= endi)
+  --   repeat
+  --     j = j - 1
+  --   until not (data[start]< data[j])
+  --   if j <= i then    
+  --     break
+  --   end
+  --   swap(swaparg, i, j)
+  --   swap(data, i, j)
+  -- end
+  -- pivot = j
+  -- swap(swaparg,start, pivot)
+  -- swap(data,start, pivot)
+
+  quicksort_impl(data,swap,start, pivot-1, swaparg)
+  quicksort_impl(data,swap,pivot+1 , endi, swaparg)
+  
+  -- -- recurse using tail call optimization
+  -- if pivot - start < endi - pivot then
   --   quicksort_impl(data,swap,start, pivot -1, swaparg)
-  --   quicksort_impl(data,swap,i , endi, swaparg)
+  --   quicksort_impl(data,swap,pivot+1 , endi, swaparg)
   -- else
-  --   quicksort_impl(data,swap,i, endi, swaparg)
+  --   quicksort_impl(data,swap,pivot+1, endi, swaparg)
   --   quicksort_impl(data,swap,start, pivot-1 , swaparg)
   -- end
 end
@@ -389,12 +412,6 @@ Array.sort = function(self, axis, comp, starti, stopi)
     end
   end
   return self
-end
-
-local _swapper = function(data, a,b)
-  local temp = data[a]
-  data[a] = data[b]
-  data[b] = temp
 end
 
 Array.argsort = function(self, axis, comp, start, stop, out, inplace)
