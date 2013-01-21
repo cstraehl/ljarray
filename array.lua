@@ -13,6 +13,10 @@ local bitop = require("bit")
 local helpers = require("helpers")
 local operator = helpers.operator
 
+if pcall(function() return Array ~= nil end) == true then
+    return Array
+end
+
 Array = {}
 Array.__index = Array
 
@@ -110,7 +114,7 @@ function Array.fromData(ptr, dtype, shape, strides, source)
       local types = array.dtype_str .. " (*)" .. types
       local arr_t = Array._arr_types[types] or ffi.typeof(types)
       Array._arr_types[types] = arr_t
-      array.carray = ffi.cast(arr_t, array.memory)
+      array.carray = ffi.cast(arr_t, array.data)
   end
   
 
