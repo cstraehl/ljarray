@@ -25,13 +25,15 @@ Array._arr_types = {}
 
 Array.register_dtype = function(dts, dtype)
     if Array[dts] ~= nil then
-        return
+        return Array[dts]
     end
+    dtype = dtype or ffi.typeof(dts)
     Array[dts] = dtype
     Array.dtype_size[dtype] = ffi.sizeof(dtype)
     Array.dtype_vla[dtype] = ffi.typeof(dts .. "[?]")
     Array.dtype_pointer[dtype] = ffi.typeof(dts .. " *")
     Array.dtype_string[dtype] = dts
+    return dtype
 end
 
 for i,dtsf in ipairs(dtypes) do
