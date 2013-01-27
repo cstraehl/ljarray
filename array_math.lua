@@ -337,3 +337,13 @@ function Array.clip(self, low, high)
     self:mapInplace(_clip)
     return self
 end
+
+local _abs = function(a)
+    return math.abs(a)
+end
+
+--- absolute values
+function Array.abs(self)
+    self:mapInplace(_abs)
+    return self
+end

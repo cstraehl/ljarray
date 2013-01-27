@@ -328,7 +328,14 @@ assert(h.data[0] == 2)
 
 
 -- test clip
-local t = array.rand({100,100,100})
+local t = array.rand({10,10,10})
 t:clip(0.4,0.6)
 assert(t:le(0.6):all())
 assert(t:ge(0.4):all())
+
+
+-- test abs
+local t = array.rand({10,10,10}):add(-0.5)
+t:abs()
+assert(t:ge(0):all())
+

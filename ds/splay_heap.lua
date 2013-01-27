@@ -67,6 +67,10 @@ SH.key = function(self, element)
     return self.heap:key(node)
 end
 
+SH.empty = function(self)
+    return self.heap.root == -1
+end
+
 SH.update_key = function(self, element, newkey)
     local node = self.element_to_node[element]
     assert(node ~= nil, "element not in heap !")
