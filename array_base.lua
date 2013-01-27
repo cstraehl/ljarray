@@ -381,6 +381,7 @@ function Array.resize(self,shape, init)
   self.shape = new.shape
   self.strides = new.strides
   self.data = new.data
+  self.carray = new.carray
   self.size = new.size
   
   return self

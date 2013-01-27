@@ -30,6 +30,12 @@ tb:set(7,2,4,11)
 assert(tb.carray[7][2][4] == 11, tb.carray[7][2][4])
 assert(ta.carray[7][3][4] == 11, ta.carray[7][3][4])
 
+ta = array.zeros({100,200}, array.int32, "c")
+ta:set(7,3,11)
+assert(ta.carray[7][3] == 11, ta.carray[7][3])
+ta.carray[11][2] = 4
+assert(ta:get(11,2) == 4, ta:get(11,2))
+
 
 -- test copy to same order
 ta = array.create(test_shape, array.int32, "f")
