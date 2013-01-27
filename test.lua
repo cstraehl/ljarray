@@ -325,3 +325,10 @@ assert(h:eq(1):all())
 t.data[9] = 0
 local h = t:histogram()
 assert(h.data[0] == 2)
+
+
+-- test clip
+local t = array.rand({100,100,100})
+t:clip(0.4,0.6)
+assert(t:le(0.6):all())
+assert(t:ge(0.4):all())

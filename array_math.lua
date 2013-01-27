@@ -320,3 +320,20 @@ function Array.histogram(self)
     end
     return result
 end
+
+
+local _clip_low
+local _clip_high
+local _clip = function(a)
+  a = math.min(a, _clip_high)
+  a = math.max(a, _clip_low)
+  return a
+end
+
+--- clip values to range
+function Array.clip(self, low, high)
+    _clip_low = low
+    _clip_high = high
+    self:mapInplace(_clip)
+    return self
+end
